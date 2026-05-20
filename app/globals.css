@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+/* Sofia Pro — brand display face */
+@font-face { font-family: "Sofia Pro"; font-style: normal; font-weight: 400; src: url("/fonts/Sofia_Pro_Regular_Az.otf") format("opentype"); font-display: swap; }
+@font-face { font-family: "Sofia Pro"; font-style: normal; font-weight: 500; src: url("/fonts/Sofia_Pro_Medium_Az.otf") format("opentype"); font-display: swap; }
+@font-face { font-family: "Sofia Pro"; font-style: normal; font-weight: 600; src: url("/fonts/Sofia_Pro_Semi_Bold_Az.otf") format("opentype"); font-display: swap; }
+@font-face { font-family: "Sofia Pro"; font-style: normal; font-weight: 700; src: url("/fonts/Sofia_Pro_Bold_Az.otf") format("opentype"); font-display: swap; }
+
+:root {
+  /* Blue */
+  --blue-50:  #e6f1fd;
+  --blue-500: #0073e6;
+  --blue-600: #0265c7;
+  --blue-700: #0052a3;
+  /* Green */
+  --green-50:  #e9f5ed;
+  --green-100: #bae1c6;
+  --green-500: #229e48;
+  --green-600: #1f9042;
+  --green-700: #067b31;
+  --green-800: #135728;
+  /* Orange */
+  --orange-50:  #fff1e0;
+  --orange-400: #ffa448;
+  --orange-500: #ff8d1a;
+  --orange-700: #b56412;
+  /* Red */
+  --red-50:  #fce7e9;
+  --red-100: #f6c1c6;
+  --red-400: #d93341;
+  --red-500: #c9111f;
+  --red-600: #a80f1a;
+  --red-700: #880c15;
+  /* Purple */
+  --purple-50:  #f3ecfb;
+  --purple-500: #6b3ec0;
+  /* Amber/Yellow */
+  --amber-50:  #fff8dc;
+  --amber-400: #e6b82e;
+  --amber-700: #806716;
+  /* Navy — primary brand */
+  --navy-900: #002744;
+
+  /* Semantic tokens */
+  --bg:            #ffffff;
+  --bg-subtle:     #f5f5f5;
+  --bg-canvas:     rgba(0,0,0,0.04);
+  --fg:            rgba(0,0,0,0.87);
+  --fg-1:          rgb(38,38,38);
+  --fg-2:          rgb(85,85,85);
+  --fg-3:          rgb(100,110,124);
+  --fg-on-brand:   rgba(255,255,255,0.96);
+  --border:        rgb(233,233,233);
+  --border-subtle: rgb(233,235,248);
+  --border-strong: rgb(217,217,217);
+
+  /* Typography */
+  --font-display: "Sofia Pro", var(--font-open-sans), system-ui, sans-serif;
+  --font-sans:    var(--font-open-sans), system-ui, -apple-system, sans-serif;
+
+  /* Shadows */
+  --shadow-1: 0 1px 2px rgba(0,0,0,0.06), 0 1px 1px rgba(0,0,0,0.04);
+  --shadow-2: 0 2px 4px rgba(0,0,0,0.09), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+html { color-scheme: light; }
+
+body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--fg);
+  background: var(--bg-subtle);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--blue-500); text-decoration: none; }
+a:hover { color: var(--blue-700); text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--blue-500); outline-offset: 2px; }
+
+table { border-collapse: separate; border-spacing: 0; }
+
+@keyframes sf-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
