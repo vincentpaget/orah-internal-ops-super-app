@@ -61,6 +61,17 @@ function CampaignIcon({ active }: { active: boolean }) {
   )
 }
 
+function AdminIcon({ active }: { active: boolean }) {
+  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="7" stroke={c} strokeWidth="1.6"/>
+      <circle cx="10" cy="10" r="2.5" stroke={c} strokeWidth="1.6"/>
+      <path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5.05 5.05l1.06 1.06M13.89 13.89l1.06 1.06M14.95 5.05l-1.06 1.06M6.11 13.89l-1.06 1.06" stroke={c} strokeWidth="1.4" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
     <svg
@@ -78,9 +89,13 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
 const NAV_ITEMS = [
   { href: '/', label: 'Home', Icon: HomeIcon, match: (p: string) => p === '/' },
   { href: '/pipeline', label: 'Pipeline Review', Icon: PipelineIcon, match: (p: string) => p.startsWith('/pipeline') },
+  { href: '/campaign-setup', label: 'Campaign Setup', Icon: CampaignIcon, match: (p: string) => p.startsWith('/campaign-setup') },
   { href: '/dedupe', label: 'CRM Dedupe', Icon: DedupeIcon, match: (p: string) => p.startsWith('/dedupe') },
   { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },
-  { href: '/campaign-setup', label: 'Campaign Setup', Icon: CampaignIcon, match: (p: string) => p.startsWith('/campaign-setup') },
+]
+
+const ADMIN_ITEMS = [
+  { href: '/admin', label: 'Admin', Icon: AdminIcon, match: (p: string) => p.startsWith('/admin') },
 ]
 
 interface Props {
@@ -109,6 +124,38 @@ export default function NavBar({ collapsed, onToggle }: Props) {
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
         {NAV_ITEMS.map(({ href, label, Icon, match }) => {
+          const active = match(pathname)
+          return (
+            <Link
+              key={href}
+              href={href}
+              title={label}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: collapsed ? 0 : 10,
+                padding: '8px',
+                borderRadius: 6,
+                textDecoration: 'none',
+                fontSize: 14,
+                background: active ? 'var(--blue-50)' : 'transparent',
+                color: active ? 'var(--navy-900)' : 'var(--fg-2)',
+                fontWeight: active ? 600 : 500,
+                borderLeft: `3px solid ${active ? 'var(--navy-900)' : 'transparent'}`,
+                transition: 'background 120ms, color 120ms',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+              }}
+            >
+              <Icon active={active} />
+              {!collapsed && <span>{label}</span>}
+            </Link>
+          )
+        })}
+
+        <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+
+        {ADMIN_ITEMS.map(({ href, label, Icon, match }) => {
           const active = match(pathname)
           return (
             <Link

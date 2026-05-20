@@ -1,0 +1,16 @@
+export const COL = {
+  opportunity: { width: 380 },
+  owner:       { width: 170 },
+  stage:       { width: 150 },
+  arr:         { width: 105 },
+  date:        { width: 170 },
+  age:         { width: 65 },
+  grade:       { width: 65 },
+  shortEnum:   { width: 130 },
+  freeText:    { width: 250 },
+  flags:       { width: 350 },
+  meddicc:     { width: 80 },
+  rank:        { width: 40 },
+  count:       { width: 75 },
+  healthScore: { width: 200 },
+}

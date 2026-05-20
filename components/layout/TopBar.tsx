@@ -21,19 +21,14 @@ export default function TopBar({ userName }: { userName: string }) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-orah-symbol.svg" alt="Orah" style={{ height: 22 }} />
+        <img src="/assets/orah-logo-white.png" alt="Orah" style={{ height: 22, opacity: 0.9 }} />
         <div style={{ width: 1, height: 18, background: 'rgba(255,255,255,0.18)' }} />
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--fg-on-brand)' }}>
-            Orah Ops Hub
-          </span>
-          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)' }}>
-            internal tools
-          </span>
-        </div>
+        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--fg-on-brand)' }}>
+          Internal Ops Hub
+        </span>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <span style={{
           display: 'inline-flex',
           alignItems: 'center',
