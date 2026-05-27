@@ -352,8 +352,8 @@ function buildFlaggedList(renewals: SFRenewalOpp[], expansions: SFExpansionOpp[]
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-const STICKY_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 0, zIndex: 2 }
-const STICKY_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 0, zIndex: 1 }
+const STICKY_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 0, zIndex: 2, minWidth: 280, maxWidth: 280 }
+const STICKY_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 0, zIndex: 1, minWidth: 280, maxWidth: 280, overflow: 'hidden' }
 const STICKY2_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 280, zIndex: 2, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
 const STICKY2_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 280, zIndex: 1, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
 
@@ -594,7 +594,7 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
           </div>
         ) : (
           <div style={{ overflowX: 'auto', position: 'relative' }}>
-            <table style={{ width: '100%', minWidth: 1950, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+            <table style={{ width: '100%', minWidth: 1950, borderCollapse: 'separate', borderSpacing: 0 }}>
               <thead>
                 <tr>
                   <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
