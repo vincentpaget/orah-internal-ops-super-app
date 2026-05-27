@@ -1,6 +1,11 @@
 import type { HealthGrade, StageName } from './types'
 import { STAGE_DISPLAY } from './types'
 
+export function fmtCurrency(amount: number | null | undefined, code: string): string {
+  if (amount == null) return '—'
+  return `${code} ${new Intl.NumberFormat('en-AU', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(amount)}`
+}
+
 export function nzd(amount: number | null | undefined, decimals = 0): string {
   if (amount == null) return '—'
   return new Intl.NumberFormat('en-NZ', {
@@ -11,10 +16,12 @@ export function nzd(amount: number | null | undefined, decimals = 0): string {
   }).format(amount)
 }
 
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+
 export function shortDate(isoDate: string | null | undefined): string {
   if (!isoDate) return '—'
   const d = new Date(isoDate + 'T00:00:00')
-  return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short' })
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`
 }
 
 export function isOverdue(isoDate: string | null | undefined): boolean {

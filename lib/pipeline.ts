@@ -21,7 +21,17 @@ export function getPeriodRange(period: string): { start: string; end: string; la
   const lastStart = `${lqY}-${qStarts[lq]}`
   const lastEnd   = `${lqY}-${qEnds[lq]}`
 
+  function addDays(d: Date, n: number): string {
+    const r = new Date(d); r.setDate(r.getDate() + n); return r.toISOString().split('T')[0]
+  }
+  const todayStr = today.toISOString().split('T')[0]
+
   switch (period) {
+    case 'next_7_days':   return { start: `${y}-01-01`, end: addDays(today, 7),   label: 'Next 7 days' }
+    case 'next_14_days':  return { start: `${y}-01-01`, end: addDays(today, 14),  label: 'Next 14 days' }
+    case 'next_30_days':  return { start: `${y}-01-01`, end: addDays(today, 30),  label: 'Next 30 days' }
+    case 'next_90_days':  return { start: `${y}-01-01`, end: addDays(today, 90),  label: 'Next 90 days' }
+    case 'next_120_days': return { start: `${y}-01-01`, end: addDays(today, 120), label: 'Next 120 days' }
     case 'next_quarter': return { start: nextStart, end: nextEnd, label: 'Next Quarter' }
     case 'last_quarter': return { start: lastStart, end: lastEnd, label: 'Last Quarter' }
     case 'this_year':    return { start: `${y}-01-01`, end: `${y}-12-31`, label: 'This Year' }

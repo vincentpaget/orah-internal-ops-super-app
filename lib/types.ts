@@ -123,3 +123,104 @@ export interface MockRepQuota {
   repName: string
   quota: number | null
 }
+
+// ── CS Pipeline ──────────────────────────────────────────────────────────────
+
+export type RenewalStage =
+  | 'Pending'
+  | 'Qualifying'
+  | 'Evaluation'
+  | 'Proposal'
+  | 'Negotiation'
+  | 'Closing'
+  | 'Closed Won'
+  | 'Closed Lost - Churned'
+
+export const RENEWAL_STAGE_ORDER: RenewalStage[] = [
+  'Pending',
+  'Qualifying',
+  'Evaluation',
+  'Proposal',
+  'Negotiation',
+  'Closing',
+  'Closed Won',
+  'Closed Lost - Churned',
+]
+
+export type ExpansionStage =
+  | 'Qualifying'
+  | 'Evaluation'
+  | 'Proposal'
+  | 'Negotiation'
+  | 'Closing'
+  | 'Closed Won'
+  | 'Closed Lost'
+
+export const EXPANSION_STAGE_ORDER: ExpansionStage[] = [
+  'Qualifying',
+  'Evaluation',
+  'Proposal',
+  'Negotiation',
+  'Closing',
+  'Closed Won',
+  'Closed Lost',
+]
+
+export interface SFRenewalOpp {
+  Id: string
+  Name: string
+  AccountId: string
+  'Account.Name': string
+  'Account.Open_Opps__c': number | null
+  OwnerId: string
+  'Owner.Id': string
+  'Owner.Name': string
+  StageName: RenewalStage
+  CloseDate: string
+  Type: string | null
+  NextStep: string | null
+  CreatedDate: string
+  CurrencyIsoCode: string | null
+  // Custom fields — API names to verify against SF schema
+  Renewal_Date_1__c: string | null
+  ARR_Basis__c: number | null
+  Auto_Renewal_Amount__c: number | null
+  Booked_ARR__c: number | null
+  Net_ARR__c: number | null
+  Expansion_Status__c: string | null
+  Expansion_Notes__c: string | null
+  Renewal_Risk_Notes__c: string | null
+  Do_Not_Auto_Renew__c: boolean | null
+  Churn_Reason_External__c: string | null
+  Loss_Reason__c: string | null
+  Loss_Reason_Detail__c: string | null
+  Net_ARR_NZD__c: number | null
+  Booked_ARR_NZD__c: number | null
+}
+
+export interface SFExpansionOpp {
+  Id: string
+  Name: string
+  AccountId: string
+  'Account.Name': string
+  'Account.Open_Opps__c': number | null
+  OwnerId: string
+  'Owner.Id': string
+  'Owner.Name': string
+  StageName: ExpansionStage
+  CloseDate: string
+  Type: string | null
+  NextStep: string | null
+  CreatedDate: string
+  // Custom fields — API names to verify against SF schema
+  SaaSOptics_Contract_End_Date__c: string | null
+  ARR_Basis__c: number | null
+  Net_ARR__c: number | null
+  Category__c: string | null
+  Expansion_Notes__c: string | null
+  Do_Not_Auto_Renew__c: boolean | null
+  CurrencyIsoCode: string | null
+  Booked_ARR__c: number | null
+  Net_ARR_NZD__c: number | null
+  Booked_ARR_NZD__c: number | null
+}

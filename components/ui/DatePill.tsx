@@ -2,19 +2,22 @@ import { shortDate } from '@/lib/formatters'
 
 interface Props {
   date: string | null | undefined
+  noWarning?: boolean
 }
 
-export default function DatePill({ date }: Props) {
+export default function DatePill({ date, noWarning }: Props) {
   if (!date) return <span style={{ color: 'var(--fg-3)' }}>—</span>
 
   const diffDays = Math.round((new Date(date).getTime() - Date.now()) / 86_400_000)
   const formatted = shortDate(date)
 
   let status: string | null = null
-  if (diffDays < 0) {
-    status = `❌ ${Math.abs(diffDays)}d past due`
-  } else if (diffDays <= 30) {
-    status = `⚠️ due in ${diffDays}d`
+  if (!noWarning) {
+    if (diffDays < 0) {
+      status = `❌ ${Math.abs(diffDays)}d past due`
+    } else if (diffDays <= 30) {
+      status = `⚠️ due in ${diffDays}d`
+    }
   }
 
   return (

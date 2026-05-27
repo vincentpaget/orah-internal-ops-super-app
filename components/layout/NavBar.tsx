@@ -61,6 +61,18 @@ function CampaignIcon({ active }: { active: boolean }) {
   )
 }
 
+function CsPipelineIcon({ active }: { active: boolean }) {
+  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M4 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
+      <path d="M10 8V4M10 4l-2 2M10 4l2 2" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="10" cy="15" r="1.5" fill={c}/>
+      <path d="M6.5 17h7" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
+    </svg>
+  )
+}
+
 function AdminIcon({ active }: { active: boolean }) {
   const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
   return (
@@ -89,6 +101,7 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
 const NAV_ITEMS = [
   { href: '/', label: 'Home', Icon: HomeIcon, match: (p: string) => p === '/' },
   { href: '/pipeline', label: 'Pipeline Review', Icon: PipelineIcon, match: (p: string) => p.startsWith('/pipeline') },
+  { href: '/cs-pipeline', label: 'CS Pipeline', Icon: CsPipelineIcon, match: (p: string) => p.startsWith('/cs-pipeline') },
   { href: '/campaign-setup', label: 'Campaign Setup', Icon: CampaignIcon, match: (p: string) => p.startsWith('/campaign-setup') },
   { href: '/dedupe', label: 'CRM Dedupe', Icon: DedupeIcon, match: (p: string) => p.startsWith('/dedupe') },
   { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },

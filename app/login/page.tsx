@@ -16,7 +16,7 @@ export default function LoginPage() {
         minWidth: 340,
       }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/assets/logo-orah-symbol.svg" alt="Orah" style={{ height: 36, marginBottom: 16 }} />
+        <img src="/assets/logo-orah-symbol.svg" alt="Orah" style={{ height: 36, display: 'block', margin: '0 auto 16px' }} />
         <div style={{ fontSize: 22, fontWeight: 700, color: '#002744', marginBottom: 6 }}>
           Orah Internal Ops Hub
         </div>

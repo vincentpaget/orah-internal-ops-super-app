@@ -13,6 +13,13 @@ const TOOLS = [
     bg: 'var(--blue-50)',
   },
   {
+    href: '/cs-pipeline',
+    title: 'CS Pipeline',
+    description: 'Renewal and expansion pipeline visibility for the Customer Success team.',
+    color: 'var(--green-600)',
+    bg: 'var(--green-50)',
+  },
+  {
     href: '/campaign-setup',
     title: 'Campaign Setup',
     description: 'AI-assisted campaign creation that triggers HubSpot and Salesforce workflows via n8n.',
@@ -37,6 +44,7 @@ const TOOLS = [
 
 const TOOL_ALLOW_ENV: Record<string, string> = {
   '/pipeline':       'PIPELINE_ALLOW',
+  '/cs-pipeline':    'CS_PIPELINE_ALLOW',
   '/dedupe':         'DEDUPE_ALLOW',
   '/event-leads':    'EVENT_LEADS_ALLOW',
   '/campaign-setup': 'CAMPAIGN_SETUP_ALLOW',
@@ -76,7 +84,7 @@ export default async function HomePage() {
             Orah Internal Ops Hub
           </h1>
           <p style={{ fontSize: 14, color: 'var(--fg-3)' }}>
-            Internal tools for the Orah Revenue team. Select a tool to get started.
+            Internal tools for the Orah Revenue and Customer Success teams. Select a tool to get started.
           </p>
         </div>
 
