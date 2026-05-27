@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import type { SFRenewalOpp, SFExpansionOpp } from '@/lib/types'
 import { getRenewalFlags, getExpansionFlags } from '@/lib/csHygiene'
 import FlagsCell from './FlagsCell'
@@ -10,6 +13,9 @@ interface Props {
   renewals: SFRenewalOpp[]
   expansions: SFExpansionOpp[]
 }
+
+type SortCol = 'flags' | 'arr_basis' | 'auto_renewal' | 'booked_arr' | 'net_arr' | 'net_arr_nzd' | 'booked_arr_nzd' | 'close_date'
+type SortDir = 'asc' | 'desc'
 
 const CLOSED_RENEWAL_STAGES = new Set(['Closed Won', 'Closed Lost - Churned'])
 const CLOSED_EXPANSION_STAGES = new Set(['Closed Won', 'Closed Lost'])
@@ -134,15 +140,58 @@ function BoolCell({ value }: { value: boolean | null | undefined }) {
   )
 }
 
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
+  const active = sortCol === col
+  return (
+    <span style={{ marginLeft: 4, fontSize: 10, color: active ? 'var(--fg-1)' : 'var(--fg-3)', flexShrink: 0 }}>
+      {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+    </span>
+  )
+}
+
 type Row =
   | { kind: 'renewal'; opp: SFRenewalOpp; sortKey: string }
   | { kind: 'expansion'; opp: SFExpansionOpp; sortKey: string }
 
+function d(s: string | null | undefined): number { return s ? new Date(s).getTime() : 0 }
+
+function getRowSortVal(row: Row, col: SortCol): number {
+  const opp = row.opp
+  switch (col) {
+    case 'flags':         return row.kind === 'renewal' ? getRenewalFlags(opp as SFRenewalOpp).length : getExpansionFlags(opp as SFExpansionOpp).length
+    case 'arr_basis':     return opp.ARR_Basis__c ?? 0
+    case 'auto_renewal':  return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Amount__c ?? 0) : 0
+    case 'booked_arr':    return opp.Booked_ARR__c ?? 0
+    case 'net_arr':       return opp.Net_ARR__c ?? 0
+    case 'net_arr_nzd':   return opp.Net_ARR_NZD__c ?? 0
+    case 'booked_arr_nzd':return opp.Booked_ARR_NZD__c ?? 0
+    case 'close_date':    return d(opp.CloseDate)
+  }
+}
+
 export default function AllDealsTable({ renewals, expansions }: Props) {
-  const rows: Row[] = [
+  const [sortCol, setSortCol] = useState<SortCol | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function toggleSort(col: SortCol) {
+    setSortCol(prev => {
+      if (prev !== col) { setSortDir('desc'); return col }
+      if (sortDir === 'desc') { setSortDir('asc'); return col }
+      setSortDir('desc'); return null
+    })
+  }
+
+  const baseRows: Row[] = [
     ...renewals.map(opp => ({ kind: 'renewal' as const, opp, sortKey: opp.CloseDate })),
     ...expansions.map(opp => ({ kind: 'expansion' as const, opp, sortKey: opp.CloseDate })),
   ].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
+
+  const rows = sortCol === null ? baseRows : [...baseRows].sort((a, b) => {
+    const diff = getRowSortVal(a, sortCol) - getRowSortVal(b, sortCol)
+    return sortDir === 'desc' ? -diff : diff
+  })
+
+  const sortProps = { sortCol, sortDir }
 
   if (rows.length === 0) {
     return (
@@ -158,20 +207,36 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
-            <th style={{ ...TH, width: 80 }}>Flags</th>
+            <th onClick={() => toggleSort('flags')} style={{ ...TH, width: 80, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Flags<SortIcon col="flags" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 100 }}>Pipeline</th>
             <th style={{ ...TH, width: 130 }}>Owner</th>
-            <th style={{ ...TH, width: 100 }}>Close Date</th>
+            <th onClick={() => toggleSort('close_date')} style={{ ...TH, width: 100, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Close Date<SortIcon col="close_date" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 140 }}>Stage</th>
             <th style={{ ...TH, width: 140 }}>Type</th>
             <th style={{ ...TH, width: 140 }}>Category</th>
             <th style={{ ...TH, width: 110, textAlign: 'center' }}>Do Not Auto Renew</th>
-            <th style={{ ...AMT_TH, width: 120 }}>ARR Basis</th>
-            <th style={{ ...AMT_TH, width: 150 }}>Auto Renewal Amount</th>
-            <th style={{ ...AMT_TH, width: 150 }}>Opp Booked ARR</th>
-            <th style={{ ...AMT_TH, width: 150 }}>Opp Net ARR</th>
-            <th style={{ ...AMT_TH, width: 150 }}>Net ARR NZD</th>
-            <th style={{ ...AMT_TH, width: 150 }}>Booked ARR NZD</th>
+            <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('auto_renewal')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Auto Renewal Amount<SortIcon col="auto_renewal" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp Booked ARR<SortIcon col="booked_arr" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('net_arr_nzd')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Net ARR NZD<SortIcon col="net_arr_nzd" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('booked_arr_nzd')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Booked ARR NZD<SortIcon col="booked_arr_nzd" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 360 }}>Next Step</th>
           </tr>
         </thead>

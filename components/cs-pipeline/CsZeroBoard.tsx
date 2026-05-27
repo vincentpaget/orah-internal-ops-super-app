@@ -550,7 +550,7 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
       {/* Zero Board flat list */}
       <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>Pipeline Hygiene</span>
+          <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>Zero Board</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '1px 8px', borderRadius: 999, background: 'var(--bg-subtle)', border: '1px solid var(--border)', fontSize: 11, fontWeight: 600, color: 'var(--fg-2)' }}>
             {displayedList.length}{activeFlags.length > 0 ? ` / ${flaggedList.length}` : ''} deal{flaggedList.length !== 1 ? 's' : ''}
           </span>

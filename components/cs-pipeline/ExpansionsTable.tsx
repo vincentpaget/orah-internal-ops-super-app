@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import type { SFExpansionOpp } from '@/lib/types'
 import { getExpansionFlags } from '@/lib/csHygiene'
 import FlagsCell from './FlagsCell'
@@ -8,6 +11,30 @@ import { FS } from '@/lib/fontSizes'
 
 interface Props {
   opps: SFExpansionOpp[]
+}
+
+type SortCol = 'flags' | 'arr_basis' | 'net_arr' | 'contract_end_date' | 'close_date'
+type SortDir = 'asc' | 'desc'
+
+function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
+  const active = sortCol === col
+  return (
+    <span style={{ marginLeft: 4, fontSize: 10, color: active ? 'var(--fg-1)' : 'var(--fg-3)', flexShrink: 0 }}>
+      {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+    </span>
+  )
+}
+
+function d(s: string | null | undefined): number { return s ? new Date(s).getTime() : 0 }
+
+function getSortVal(opp: SFExpansionOpp, col: SortCol): number {
+  switch (col) {
+    case 'flags':              return getExpansionFlags(opp).length
+    case 'arr_basis':          return opp.ARR_Basis__c ?? 0
+    case 'net_arr':            return opp.Net_ARR__c ?? 0
+    case 'contract_end_date':  return d(opp.SaaSOptics_Contract_End_Date__c)
+    case 'close_date':         return d(opp.CloseDate)
+  }
 }
 
 const CLOSED_STAGES = new Set(['Closed Won', 'Closed Lost'])
@@ -109,6 +136,24 @@ function NetArrCell({ value, code }: { value: number | null | undefined; code: s
 }
 
 export default function ExpansionsTable({ opps }: Props) {
+  const [sortCol, setSortCol] = useState<SortCol | null>(null)
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  function toggleSort(col: SortCol) {
+    setSortCol(prev => {
+      if (prev !== col) { setSortDir('desc'); return col }
+      if (sortDir === 'desc') { setSortDir('asc'); return col }
+      setSortDir('desc'); return null
+    })
+  }
+
+  const sorted = sortCol === null ? opps : [...opps].sort((a, b) => {
+    const diff = getSortVal(a, sortCol) - getSortVal(b, sortCol)
+    return sortDir === 'desc' ? -diff : diff
+  })
+
+  const sortProps = { sortCol, sortDir }
+
   if (opps.length === 0) {
     return (
       <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--fg-3)', ...FS.base }}>
@@ -123,21 +168,31 @@ export default function ExpansionsTable({ opps }: Props) {
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
-            <th style={{ ...TH, width: 80 }}>Flags</th>
+            <th onClick={() => toggleSort('flags')} style={{ ...TH, width: 80, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Flags<SortIcon col="flags" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 130 }}>Owner</th>
-            <th style={{ ...TH, width: 120 }}>Contract End Date</th>
-            <th style={{ ...TH, width: 100 }}>Close Date</th>
+            <th onClick={() => toggleSort('contract_end_date')} style={{ ...TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Contract End Date<SortIcon col="contract_end_date" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('close_date')} style={{ ...TH, width: 100, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Close Date<SortIcon col="close_date" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 140 }}>Stage</th>
             <th style={{ ...TH, width: 140 }}>Type</th>
             <th style={{ ...TH, width: 140 }}>Category</th>
-            <th style={{ ...AMT_TH, width: 120 }}>ARR Basis</th>
-            <th style={{ ...AMT_TH, width: 120 }}>Net ARR</th>
+            <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
+            </th>
             <th style={{ ...TH, width: 360 }}>Expansion Notes</th>
             <th style={{ ...TH, width: 360 }}>Next Step</th>
           </tr>
         </thead>
         <tbody>
-          {opps.map(opp => {
+          {sorted.map(opp => {
             const isClosed = CLOSED_STAGES.has(opp.StageName)
             const code = opp.CurrencyIsoCode ?? 'AUD'
             return (
