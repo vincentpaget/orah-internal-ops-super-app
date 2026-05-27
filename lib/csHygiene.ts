@@ -28,50 +28,50 @@ export interface HygieneRule {
 export const HYGIENE_RULES: HygieneRule[] = [
   {
     id: 'type-empty',
-    label: 'No Type Set',
-    shortLabel: 'No Type',
+    label: 'Type is empty',
+    shortLabel: 'Type is empty',
     description: 'Opportunity is in an active stage (Qualifying → Closing) but Type is not set.',
     appliesTo: 'renewals',
   },
   {
     id: 'pending-with-type',
-    label: 'Pending with Type Set',
-    shortLabel: 'Pending + Type',
+    label: 'Active opp in pending',
+    shortLabel: 'Active opp in pending',
     description: 'Type is set on a Pending opportunity — it should be moved to a working stage.',
     appliesTo: 'renewals',
   },
   {
     id: 'expansion-amount-not-set',
-    label: 'Expansion Amount Missing',
-    shortLabel: 'Exp. Amount',
-    description: 'Upsell or Cross-sell opportunity where Net ARR is below the Auto Renewal uplift delta.',
+    label: 'Expansion amount insufficient',
+    shortLabel: 'Expansion amount insufficient',
+    description: 'Upsell or Cross-sell opportunity where Net ARR is not at least $50 above the Auto Renewal Net ARR.',
     appliesTo: 'renewals',
   },
   {
     id: 'missing-expansion-notes',
-    label: 'Missing Expansion Notes',
-    shortLabel: 'No Exp. Notes',
+    label: 'Expansion Notes is empty',
+    shortLabel: 'Expansion Notes is empty',
     description: 'Active opportunity beyond Pending is missing Expansion Notes.',
     appliesTo: 'both',
   },
   {
     id: 'missing-next-steps',
-    label: 'Missing Next Step',
-    shortLabel: 'No Next Step',
+    label: 'Next Step is empty',
+    shortLabel: 'Next Step is empty',
     description: 'Active opportunity beyond Pending is missing a Next Step.',
     appliesTo: 'both',
   },
   {
     id: 'invalid-stage',
-    label: 'Invalid Stage',
-    shortLabel: 'Invalid Stage',
+    label: 'Stage Invalid',
+    shortLabel: 'Stage Invalid',
     description: 'Stage is not in the recognised stage list.',
     appliesTo: 'both',
   },
   {
     id: 'potential-duplicate',
-    label: 'Potential Duplicate',
-    shortLabel: 'Duplicate',
+    label: 'Potential Duplicate Opps Exist',
+    shortLabel: 'Potential Duplicate Opps Exist',
     description: 'Account has more than one open opportunity — possible duplicate pipeline entry.',
     appliesTo: 'both',
   },
@@ -91,8 +91,8 @@ export function getRenewalFlags(opp: SFRenewalOpp): string[] {
     flags.push('pending-with-type')
   }
   if (EXPANSION_TYPES.has(opp.Type ?? '')) {
-    const delta = (opp.Auto_Renewal_Amount__c ?? 0) - (opp.ARR_Basis__c ?? 0)
-    if (opp.Net_ARR__c == null || (delta > 0 && opp.Net_ARR__c < delta)) {
+    const autoRenewalNetArr = opp.Auto_Renewal_Net_ARR__c ?? 0
+    if (opp.Net_ARR__c == null || opp.Net_ARR__c < autoRenewalNetArr + 50) {
       flags.push('expansion-amount-not-set')
     }
   }

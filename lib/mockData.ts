@@ -762,6 +762,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 26400,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 26400,
+    Auto_Renewal_Amount_NZD__c: 26400,
+    Auto_Renewal_Net_ARR__c: 0,
+    Auto_Renewal_Net_ARR_NZD__c: 0,
   },
   {
     Id: 'ren_002',
@@ -792,6 +796,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 52800,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 52800,
+    Auto_Renewal_Amount_NZD__c: 52800,
+    Auto_Renewal_Net_ARR__c: 0,
+    Auto_Renewal_Net_ARR_NZD__c: 0,
   },
   {
     Id: 'ren_003',
@@ -822,6 +830,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 68200,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 68200,
+    Auto_Renewal_Amount_NZD__c: 63800,
+    Auto_Renewal_Net_ARR__c: -4000,
+    Auto_Renewal_Net_ARR_NZD__c: -4400,
   },
   {
     Id: 'ren_004',
@@ -852,6 +864,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 104500,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 104500,
+    Auto_Renewal_Amount_NZD__c: 124300,
+    Auto_Renewal_Net_ARR__c: 18000,
+    Auto_Renewal_Net_ARR_NZD__c: 19800,
   },
   {
     Id: 'ren_005',
@@ -882,6 +898,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 41800,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 41800,
+    Auto_Renewal_Amount_NZD__c: 39710,
+    Auto_Renewal_Net_ARR__c: -1900,
+    Auto_Renewal_Net_ARR_NZD__c: -2090,
   },
   {
     Id: 'ren_006',
@@ -912,6 +932,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 78100,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 78100,
+    Auto_Renewal_Amount_NZD__c: 78100,
+    Auto_Renewal_Net_ARR__c: 0,
+    Auto_Renewal_Net_ARR_NZD__c: 0,
   },
   {
     Id: 'ren_007',
@@ -942,6 +966,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: null,
     Net_ARR_NZD__c: 31900,
     Booked_ARR_NZD__c: 31900,
+    ARR_Basis_NZD__c: 31900,
+    Auto_Renewal_Amount_NZD__c: 31900,
+    Auto_Renewal_Net_ARR__c: 0,
+    Auto_Renewal_Net_ARR_NZD__c: 0,
   },
   {
     Id: 'ren_008',
@@ -972,6 +1000,10 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Loss_Reason_Detail__c: 'Customer cited pricing was too high relative to perceived value',
     Net_ARR_NZD__c: 0,
     Booked_ARR_NZD__c: 0,
+    ARR_Basis_NZD__c: 19800,
+    Auto_Renewal_Amount_NZD__c: 19800,
+    Auto_Renewal_Net_ARR__c: 0,
+    Auto_Renewal_Net_ARR_NZD__c: 0,
   },
 ]
 
@@ -1000,6 +1032,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: null,
     Net_ARR_NZD__c: 13200,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 16500,
   },
   {
     Id: 'exp_002',
@@ -1025,6 +1058,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: null,
     Net_ARR_NZD__c: 27500,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 38500,
   },
   {
     Id: 'exp_003',
@@ -1050,6 +1084,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: null,
     Net_ARR_NZD__c: 19800,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 24200,
   },
   {
     Id: 'exp_004',
@@ -1075,6 +1110,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: null,
     Net_ARR_NZD__c: 35200,
     Booked_ARR_NZD__c: null,
+    ARR_Basis_NZD__c: 49500,
   },
   {
     Id: 'exp_005',
@@ -1100,6 +1136,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: 15000,
     Net_ARR_NZD__c: 16500,
     Booked_ARR_NZD__c: 16500,
+    ARR_Basis_NZD__c: 30800,
   },
   {
     Id: 'exp_006',
@@ -1125,6 +1162,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Booked_ARR__c: 0,
     Net_ARR_NZD__c: 8800,
     Booked_ARR_NZD__c: 0,
+    ARR_Basis_NZD__c: 22000,
   },
 ]
 

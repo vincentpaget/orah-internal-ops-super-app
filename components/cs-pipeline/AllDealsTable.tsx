@@ -6,7 +6,7 @@ import { getRenewalFlags, getExpansionFlags } from '@/lib/csHygiene'
 import FlagsCell from './FlagsCell'
 import SalesforceLink from '@/components/ui/SalesforceLink'
 import DatePill from '@/components/ui/DatePill'
-import { fmtCurrency, nzd } from '@/lib/formatters'
+import { fmtCurrency } from '@/lib/formatters'
 import { FS } from '@/lib/fontSizes'
 
 interface Props {
@@ -14,7 +14,7 @@ interface Props {
   expansions: SFExpansionOpp[]
 }
 
-type SortCol = 'flags' | 'arr_basis' | 'auto_renewal' | 'booked_arr' | 'net_arr' | 'net_arr_nzd' | 'booked_arr_nzd' | 'close_date'
+type SortCol = 'flags' | 'arr_basis' | 'auto_renewal' | 'auto_renewal_net_arr' | 'booked_arr' | 'net_arr' | 'close_date'
 type SortDir = 'asc' | 'desc'
 
 const CLOSED_RENEWAL_STAGES = new Set(['Closed Won', 'Closed Lost - Churned'])
@@ -121,10 +121,26 @@ function LongTextCell({ value }: { value: string | null | undefined }) {
   )
 }
 
-function NetArrCell({ value, code }: { value: number | null | undefined; code: string }) {
+function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
+  value: number | null | undefined
+  code: string
+  nzdValue?: number | null
+  signed?: boolean
+}) {
   if (value == null) return <span style={{ color: 'var(--fg-3)' }}>—</span>
-  const color = value > 0 ? 'var(--green-700)' : value < 0 ? 'var(--red-700)' : 'var(--fg-3)'
-  return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtCurrency(value, code)}</span>
+  if (signed && value === 0) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  const color = signed ? (value > 0 ? 'var(--green-500)' : 'var(--red-400)') : 'var(--fg-1)'
+  const emoji = signed ? (value > 0 ? '▲ ' : '▼ ') : ''
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color }}>{emoji}{fmtCurrency(value, code)}</span>
+      {nzdValue != null && (
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: signed ? color : 'var(--fg-3)' }}>
+          ({fmtCurrency(nzdValue, 'NZD')})
+        </span>
+      )}
+    </span>
+  )
 }
 
 function BoolCell({ value }: { value: boolean | null | undefined }) {
@@ -159,13 +175,12 @@ function getRowSortVal(row: Row, col: SortCol): number {
   const opp = row.opp
   switch (col) {
     case 'flags':         return row.kind === 'renewal' ? getRenewalFlags(opp as SFRenewalOpp).length : getExpansionFlags(opp as SFExpansionOpp).length
-    case 'arr_basis':     return opp.ARR_Basis__c ?? 0
-    case 'auto_renewal':  return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Amount__c ?? 0) : 0
-    case 'booked_arr':    return opp.Booked_ARR__c ?? 0
-    case 'net_arr':       return opp.Net_ARR__c ?? 0
-    case 'net_arr_nzd':   return opp.Net_ARR_NZD__c ?? 0
-    case 'booked_arr_nzd':return opp.Booked_ARR_NZD__c ?? 0
-    case 'close_date':    return d(opp.CloseDate)
+    case 'arr_basis':            return opp.ARR_Basis_NZD__c ?? opp.ARR_Basis__c ?? 0
+    case 'auto_renewal':         return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Amount_NZD__c ?? (opp as SFRenewalOpp).Auto_Renewal_Amount__c ?? 0) : 0
+    case 'auto_renewal_net_arr': return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Net_ARR_NZD__c ?? (opp as SFRenewalOpp).Auto_Renewal_Net_ARR__c ?? 0) : 0
+    case 'booked_arr':           return opp.Booked_ARR_NZD__c ?? opp.Booked_ARR__c ?? 0
+    case 'net_arr':              return opp.Net_ARR_NZD__c ?? opp.Net_ARR__c ?? 0
+    case 'close_date':           return d(opp.CloseDate)
   }
 }
 
@@ -203,7 +218,7 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
 
   return (
     <div style={{ overflowX: 'auto', position: 'relative' }}>
-      <table style={{ width: '100%', minWidth: 2650, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <table style={{ width: '100%', minWidth: 2350, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
@@ -225,17 +240,14 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
             <th onClick={() => toggleSort('auto_renewal')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Auto Renewal Amount<SortIcon col="auto_renewal" {...sortProps} /></span>
             </th>
-            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp Booked ARR<SortIcon col="booked_arr" {...sortProps} /></span>
+            <th onClick={() => toggleSort('auto_renewal_net_arr')} style={{ ...AMT_TH, width: 130, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Auto Renewal Net ARR<SortIcon col="auto_renewal_net_arr" {...sortProps} /></span>
             </th>
-            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
+            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp ARR<SortIcon col="booked_arr" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('net_arr_nzd')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Net ARR NZD<SortIcon col="net_arr_nzd" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('booked_arr_nzd')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Booked ARR NZD<SortIcon col="booked_arr_nzd" {...sortProps} /></span>
             </th>
             <th style={{ ...TH, width: 360 }}>Next Step</th>
           </tr>
@@ -259,12 +271,11 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
                   <td style={{ ...TD, width: 140 }}><TypeCell value={opp.Type} /></td>
                   <td style={{ ...TD, width: 140, color: 'var(--fg-3)' }}>—</td>
                   <td style={{ ...TD, width: 110, textAlign: 'center' }}><BoolCell value={opp.Do_Not_Auto_Renew__c} /></td>
-                  <td style={{ ...AMT_TD, width: 120, color: 'var(--fg-1)' }}>{fmtCurrency(opp.ARR_Basis__c, code)}</td>
-                  <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-2)' }}>{fmtCurrency(opp.Auto_Renewal_Amount__c, code)}</td>
-                  <td style={{ ...AMT_TD, width: 150 }}>{fmtCurrency(opp.Booked_ARR__c, code)}</td>
-                  <td style={{ ...TD, width: 150, textAlign: 'right' }}><NetArrCell value={opp.Net_ARR__c} code={code} /></td>
-                  <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-2)' }}>{nzd(opp.Net_ARR_NZD__c)}</td>
-                  <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-2)' }}>{nzd(opp.Booked_ARR_NZD__c)}</td>
+                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} /></td>
+                  <td style={{ ...AMT_TD, width: 150 }}><CurrencyPairCell value={opp.Auto_Renewal_Amount__c} code={code} nzdValue={opp.Auto_Renewal_Amount_NZD__c} /></td>
+                  <td style={{ ...AMT_TD, width: 130 }}><CurrencyPairCell value={opp.Auto_Renewal_Net_ARR__c} code={code} nzdValue={opp.Auto_Renewal_Net_ARR_NZD__c} signed /></td>
+                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Booked_ARR__c} code={code} nzdValue={opp.Booked_ARR_NZD__c} /></td>
+                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Net_ARR__c} code={code} nzdValue={opp.Net_ARR_NZD__c} signed /></td>
                   <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.NextStep} /></td>
                 </tr>
               )
@@ -285,12 +296,11 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
                 <td style={{ ...TD, width: 140 }}><TypeCell value={opp.Type} /></td>
                 <td style={{ ...TD, width: 140, color: 'var(--fg-2)', fontSize: 13 }}>{opp.Category__c ?? '—'}</td>
                 <td style={{ ...TD, width: 110, textAlign: 'center' }}><BoolCell value={opp.Do_Not_Auto_Renew__c} /></td>
-                <td style={{ ...AMT_TD, width: 120, color: 'var(--fg-1)' }}>{fmtCurrency(opp.ARR_Basis__c, opp.CurrencyIsoCode ?? 'AUD')}</td>
+                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.ARR_Basis__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.ARR_Basis_NZD__c} /></td>
                 <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-3)' }}>—</td>
-                <td style={{ ...AMT_TD, width: 150 }}>{fmtCurrency(opp.Booked_ARR__c, opp.CurrencyIsoCode ?? 'AUD')}</td>
-                <td style={{ ...TD, width: 150, textAlign: 'right' }}><NetArrCell value={opp.Net_ARR__c} code={opp.CurrencyIsoCode ?? 'AUD'} /></td>
-                <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-2)' }}>{nzd(opp.Net_ARR_NZD__c)}</td>
-                <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-2)' }}>{nzd(opp.Booked_ARR_NZD__c)}</td>
+                <td style={{ ...AMT_TD, width: 130, color: 'var(--fg-3)' }}>—</td>
+                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Booked_ARR__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.Booked_ARR_NZD__c} /></td>
+                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Net_ARR__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.Net_ARR_NZD__c} signed /></td>
                 <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.NextStep} /></td>
               </tr>
             )

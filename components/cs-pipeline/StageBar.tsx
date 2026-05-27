@@ -19,13 +19,13 @@ interface Props {
 }
 
 function formatArr(amount: number): string {
-  if (amount === 0) return 'NZ$0'
+  if (amount === 0) return '$0'
   const sign = amount < 0 ? '-' : ''
   const abs = Math.abs(amount)
   const k = Math.round(abs / 1_000)
-  if (k >= 1_000) return `${sign}NZ$${Math.round(k / 1_000)}m`
-  if (k > 0) return `${sign}NZ$${k}k`
-  return `${sign}NZ$<1k`
+  if (k >= 1_000) return `${sign}$${Math.round(k / 1_000)}m`
+  if (k > 0) return `${sign}$${k}k`
+  return `${sign}$<1k`
 }
 
 export default function StageBar({ stats, activeStage, filterSearch, metric, onMetricChange }: Props) {

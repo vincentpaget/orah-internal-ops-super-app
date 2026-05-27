@@ -113,6 +113,22 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   'Lost':                         { bg: 'rgba(153,27,27,0.12)',  color: '#7f1d1d' },
 }
 
+function SignedNzdCell({ value }: { value: number | null | undefined }) {
+  if (value == null || value === 0) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  const color = value > 0 ? 'var(--green-500)' : 'var(--red-400)'
+  const triangle = value > 0 ? '▲ ' : '▼ '
+  return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{triangle}{nzd(value)}</span>
+}
+
+function LongTextCell({ value }: { value: string | null | undefined }) {
+  if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  return (
+    <span style={{ color: 'var(--fg-2)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+      {value}
+    </span>
+  )
+}
+
 function TypeCell({ value }: { value: string | null | undefined }) {
   if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
   const { bg, color } = TYPE_COLORS[value] ?? { bg: 'var(--bg-subtle)', color: 'var(--fg-2)' }
@@ -311,6 +327,11 @@ type FlaggedRow = {
   kind: 'renewal' | 'expansion'; id: string; name: string; owner: string;
   stage: string; closeDate: string; type: string | null; arr: number | null;
   flags: string[]; isClosed: boolean
+  autoRenewalNetArr: number | null
+  netArr: number | null
+  expansionNotes: string | null
+  nextStep: string | null
+  openOpps: number | null
 }
 
 function buildFlaggedList(renewals: SFRenewalOpp[], expansions: SFExpansionOpp[]): FlaggedRow[] {
@@ -319,20 +340,22 @@ function buildFlaggedList(renewals: SFRenewalOpp[], expansions: SFExpansionOpp[]
     const flags = getRenewalFlags(opp)
     if (flags.length === 0) continue
     const isClosed = CLOSED_RENEWAL_STAGES.has(opp.StageName)
-    rows.push({ kind: 'renewal', id: opp.Id, name: opp.Name, owner: opp['Owner.Name'], stage: opp.StageName, closeDate: opp.CloseDate, type: opp.Type, arr: opp.Booked_ARR_NZD__c, flags, isClosed })
+    rows.push({ kind: 'renewal', id: opp.Id, name: opp.Name, owner: opp['Owner.Name'], stage: opp.StageName, closeDate: opp.CloseDate, type: opp.Type, arr: opp.Booked_ARR_NZD__c, flags, isClosed, autoRenewalNetArr: opp.Auto_Renewal_Net_ARR_NZD__c, netArr: opp.Net_ARR_NZD__c, expansionNotes: opp.Expansion_Notes__c, nextStep: opp.NextStep, openOpps: opp['Account.Open_Opps__c'] })
   }
   for (const opp of expansions) {
     const flags = getExpansionFlags(opp)
     if (flags.length === 0) continue
-    rows.push({ kind: 'expansion', id: opp.Id, name: opp.Name, owner: opp['Owner.Name'], stage: opp.StageName, closeDate: opp.CloseDate, type: opp.Type, arr: opp.Booked_ARR_NZD__c, flags, isClosed: false })
+    rows.push({ kind: 'expansion', id: opp.Id, name: opp.Name, owner: opp['Owner.Name'], stage: opp.StageName, closeDate: opp.CloseDate, type: opp.Type, arr: opp.Booked_ARR_NZD__c, flags, isClosed: false, autoRenewalNetArr: null, netArr: opp.Net_ARR_NZD__c, expansionNotes: opp.Expansion_Notes__c, nextStep: opp.NextStep, openOpps: opp['Account.Open_Opps__c'] })
   }
   return rows.sort((a, b) => b.flags.length - a.flags.length || a.closeDate.localeCompare(b.closeDate))
 }
 
 // ─── Main component ──────────────────────────────────────────────────────────
 
-const STICKY_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 0, zIndex: 2, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
-const STICKY_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 0, zIndex: 1, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
+const STICKY_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 0, zIndex: 2 }
+const STICKY_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 0, zIndex: 1 }
+const STICKY2_TH: React.CSSProperties = { ...TH_BASE, position: 'sticky', left: 280, zIndex: 2, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
+const STICKY2_TD: React.CSSProperties = { ...TD_BASE, position: 'sticky', left: 280, zIndex: 1, boxShadow: '2px 0 4px rgba(0,0,0,0.06)' }
 
 export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: Props) {
   const [rulesOpen, setRulesOpen] = useState(false)
@@ -571,17 +594,22 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
           </div>
         ) : (
           <div style={{ overflowX: 'auto', position: 'relative' }}>
-            <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'separate', borderSpacing: 0 }}>
+            <table style={{ width: '100%', minWidth: 1950, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
               <thead>
                 <tr>
                   <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
-                  <th style={{ ...TH_BASE, width: 80 }}>Flags</th>
+                  <th style={{ ...STICKY2_TH, width: 80 }}>Flags</th>
                   <th style={{ ...TH_BASE, width: 100 }}>Pipeline</th>
                   <th style={{ ...TH_BASE, width: 130 }}>Owner</th>
                   <th style={{ ...TH_BASE, width: 130 }}>Stage</th>
                   <th style={{ ...TH_BASE, width: 120, textAlign: 'right' }}>Total ARR (NZD)</th>
+                  <th style={{ ...TH_BASE, width: 130, textAlign: 'right' }}>Auto Renewal Net ARR</th>
+                  <th style={{ ...TH_BASE, width: 120, textAlign: 'right' }}>Opp Net ARR</th>
                   <th style={{ ...TH_BASE, width: 140 }}>Close Date</th>
                   <th style={{ ...TH_BASE, width: 140 }}>Type</th>
+                  <th style={{ ...TH_BASE, width: 300 }}>Expansion Notes</th>
+                  <th style={{ ...TH_BASE, width: 300 }}>Next Step</th>
+                  <th style={{ ...TH_BASE, width: 80, textAlign: 'center' }}>Open Opps</th>
                 </tr>
               </thead>
               <tbody>
@@ -590,7 +618,7 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
                     <td style={{ ...STICKY_TD, width: 280 }}>
                       <SalesforceLink label={row.name} opportunityId={row.id} />
                     </td>
-                    <td style={{ ...TD_BASE, width: 80 }}>
+                    <td style={{ ...STICKY2_TD, width: 80 }}>
                       <FlagsCell flags={row.flags} />
                     </td>
                     <td style={{ ...TD_BASE, width: 100 }}><PipelineBadge kind={row.kind} /></td>
@@ -599,10 +627,25 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
                     <td style={{ ...TD_BASE, width: 120, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--fg-1)' }}>
                       {nzd(row.arr)}
                     </td>
+                    <td style={{ ...TD_BASE, width: 130, textAlign: 'right' }}>
+                      <SignedNzdCell value={row.autoRenewalNetArr} />
+                    </td>
+                    <td style={{ ...TD_BASE, width: 120, textAlign: 'right' }}>
+                      <SignedNzdCell value={row.netArr} />
+                    </td>
                     <td style={{ ...TD_BASE, width: 140 }}>
                       <DatePill date={row.closeDate} noWarning={row.isClosed} />
                     </td>
                     <td style={{ ...TD_BASE, width: 140 }}><TypeCell value={row.type} /></td>
+                    <td style={{ ...TD_BASE, width: 300 }}>
+                      <LongTextCell value={row.expansionNotes} />
+                    </td>
+                    <td style={{ ...TD_BASE, width: 300 }}>
+                      <LongTextCell value={row.nextStep} />
+                    </td>
+                    <td style={{ ...TD_BASE, width: 80, textAlign: 'center', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
+                      {row.openOpps != null ? row.openOpps : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

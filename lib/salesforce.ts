@@ -114,7 +114,11 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
       Loss_Reason__c,
       Loss_Reason_Detail__c,
       Net_ARR_NZD__c,
-      Booked_ARR_NZD__c
+      Booked_ARR_NZD__c,
+      ARR_Basis_NZD__c,
+      Auto_Renewal_Amount_NZD__c,
+      Auto_Renewal_Net_ARR__c,
+      Auto_Renewal_Net_ARR_NZD__c
     FROM Opportunity
     WHERE RecordTypeId = '0127F000001JcfYQAS'
       AND AccountId != '0017F00000XJtiAQAT'
@@ -148,7 +152,8 @@ export async function fetchExpansions(year: string): Promise<SFExpansionOpp[]> {
       CurrencyIsoCode,
       Booked_ARR__c,
       Net_ARR_NZD__c,
-      Booked_ARR_NZD__c
+      Booked_ARR_NZD__c,
+      ARR_Basis_NZD__c
     FROM Opportunity
     WHERE RecordTypeId = '0127F000000fGpGQAU'
       AND AccountId != '0017F00000XJtiAQAT'

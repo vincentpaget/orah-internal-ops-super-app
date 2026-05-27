@@ -196,6 +196,10 @@ export interface SFRenewalOpp {
   Loss_Reason_Detail__c: string | null
   Net_ARR_NZD__c: number | null
   Booked_ARR_NZD__c: number | null
+  ARR_Basis_NZD__c: number | null
+  Auto_Renewal_Amount_NZD__c: number | null
+  Auto_Renewal_Net_ARR__c: number | null
+  Auto_Renewal_Net_ARR_NZD__c: number | null
 }
 
 export interface SFExpansionOpp {
@@ -223,4 +227,5 @@ export interface SFExpansionOpp {
   Booked_ARR__c: number | null
   Net_ARR_NZD__c: number | null
   Booked_ARR_NZD__c: number | null
+  ARR_Basis_NZD__c: number | null
 }

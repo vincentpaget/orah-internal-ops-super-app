@@ -13,7 +13,7 @@ interface Props {
   opps: SFExpansionOpp[]
 }
 
-type SortCol = 'flags' | 'arr_basis' | 'net_arr' | 'contract_end_date' | 'close_date'
+type SortCol = 'flags' | 'arr_basis' | 'booked_arr' | 'net_arr' | 'contract_end_date' | 'close_date'
 type SortDir = 'asc' | 'desc'
 
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
@@ -30,8 +30,9 @@ function d(s: string | null | undefined): number { return s ? new Date(s).getTim
 function getSortVal(opp: SFExpansionOpp, col: SortCol): number {
   switch (col) {
     case 'flags':              return getExpansionFlags(opp).length
-    case 'arr_basis':          return opp.ARR_Basis__c ?? 0
-    case 'net_arr':            return opp.Net_ARR__c ?? 0
+    case 'arr_basis':          return opp.ARR_Basis_NZD__c ?? opp.ARR_Basis__c ?? 0
+    case 'booked_arr':         return opp.Booked_ARR_NZD__c ?? opp.Booked_ARR__c ?? 0
+    case 'net_arr':            return opp.Net_ARR_NZD__c ?? opp.Net_ARR__c ?? 0
     case 'contract_end_date':  return d(opp.SaaSOptics_Contract_End_Date__c)
     case 'close_date':         return d(opp.CloseDate)
   }
@@ -129,10 +130,26 @@ function LongTextCell({ value }: { value: string | null | undefined }) {
   )
 }
 
-function NetArrCell({ value, code }: { value: number | null | undefined; code: string }) {
+function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
+  value: number | null | undefined
+  code: string
+  nzdValue?: number | null
+  signed?: boolean
+}) {
   if (value == null) return <span style={{ color: 'var(--fg-3)' }}>—</span>
-  const color = value > 0 ? 'var(--green-700)' : value < 0 ? 'var(--red-700)' : 'var(--fg-3)'
-  return <span style={{ color, fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>{fmtCurrency(value, code)}</span>
+  if (signed && value === 0) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  const color = signed ? (value > 0 ? 'var(--green-500)' : 'var(--red-400)') : 'var(--fg-1)'
+  const emoji = signed ? (value > 0 ? '▲ ' : '▼ ') : ''
+  return (
+    <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+      <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color }}>{emoji}{fmtCurrency(value, code)}</span>
+      {nzdValue != null && (
+        <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 11, color: signed ? color : 'var(--fg-3)' }}>
+          ({fmtCurrency(nzdValue, 'NZD')})
+        </span>
+      )}
+    </span>
+  )
 }
 
 export default function ExpansionsTable({ opps }: Props) {
@@ -164,7 +181,7 @@ export default function ExpansionsTable({ opps }: Props) {
 
   return (
     <div style={{ overflowX: 'auto', position: 'relative' }}>
-      <table style={{ width: '100%', minWidth: 2400, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <table style={{ width: '100%', minWidth: 2520, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
@@ -183,6 +200,9 @@ export default function ExpansionsTable({ opps }: Props) {
             <th style={{ ...TH, width: 140 }}>Category</th>
             <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
+            </th>
+            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Booked ARR<SortIcon col="booked_arr" {...sortProps} /></span>
             </th>
             <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
@@ -221,11 +241,14 @@ export default function ExpansionsTable({ opps }: Props) {
                 <td style={{ ...TD, width: 140, color: 'var(--fg-2)', fontSize: 13 }}>
                   {opp.Category__c ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}
                 </td>
-                <td style={{ ...AMT_TD, width: 120, color: 'var(--fg-1)' }}>
-                  {fmtCurrency(opp.ARR_Basis__c, code)}
+                <td style={{ ...AMT_TD, width: 120 }}>
+                  <CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} />
                 </td>
-                <td style={{ ...TD, width: 120, textAlign: 'right' }}>
-                  <NetArrCell value={opp.Net_ARR__c} code={code} />
+                <td style={{ ...AMT_TD, width: 120 }}>
+                  <CurrencyPairCell value={opp.Booked_ARR__c} code={code} nzdValue={opp.Booked_ARR_NZD__c} />
+                </td>
+                <td style={{ ...AMT_TD, width: 120 }}>
+                  <CurrencyPairCell value={opp.Net_ARR__c} code={code} nzdValue={opp.Net_ARR_NZD__c} signed />
                 </td>
                 <td style={{ ...TD, width: 360 }}>
                   <LongTextCell value={opp.Expansion_Notes__c} />
