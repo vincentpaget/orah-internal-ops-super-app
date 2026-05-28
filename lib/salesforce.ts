@@ -72,24 +72,28 @@ export async function fetchOpportunities(start: string, end: string): Promise<SF
 function mapRenewalRecord(r: Record<string, unknown>): SFRenewalOpp {
   const owner = r.Owner as Record<string, unknown> | null
   const account = r.Account as Record<string, unknown> | null
+  const pricebook2 = r.Pricebook2 as Record<string, unknown> | null
   return {
     ...(r as unknown as SFRenewalOpp),
     'Owner.Id': (owner?.Id as string) ?? '',
     'Owner.Name': (owner?.Name as string) ?? '',
     'Account.Name': (account?.Name as string) ?? '',
     'Account.Open_Opps__c': (account?.Open_Opps__c as number) ?? null,
+    'Pricebook2.Name': (pricebook2?.Name as string) ?? null,
   }
 }
 
 function mapExpansionRecord(r: Record<string, unknown>): SFExpansionOpp {
   const owner = r.Owner as Record<string, unknown> | null
   const account = r.Account as Record<string, unknown> | null
+  const pricebook2 = r.Pricebook2 as Record<string, unknown> | null
   return {
     ...(r as unknown as SFExpansionOpp),
     'Owner.Id': (owner?.Id as string) ?? '',
     'Owner.Name': (owner?.Name as string) ?? '',
     'Account.Name': (account?.Name as string) ?? '',
     'Account.Open_Opps__c': (account?.Open_Opps__c as number) ?? null,
+    'Pricebook2.Name': (pricebook2?.Name as string) ?? null,
   }
 }
 
@@ -100,6 +104,7 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
   const soql = `
     SELECT
       Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name,
+      Pricebook2.Name,
       StageName, CloseDate, Type, NextStep, CreatedDate, CurrencyIsoCode,
       Renewal_Date_1__c,
       ARR_Basis__c,
@@ -142,6 +147,7 @@ export async function fetchExpansions(year: string): Promise<SFExpansionOpp[]> {
   const soql = `
     SELECT
       Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name,
+      Pricebook2.Name,
       StageName, CloseDate, Type, NextStep, CreatedDate,
       SaaSOptics_Contract_End_Date__c,
       ARR_Basis__c,

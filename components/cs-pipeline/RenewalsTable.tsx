@@ -208,7 +208,7 @@ export default function RenewalsTable({ opps, activeStage: _activeStage }: Props
 
   return (
     <div style={{ overflowX: 'auto', position: 'relative' }}>
-      <table style={{ width: '100%', minWidth: 3060, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <table style={{ width: '100%', minWidth: 3210, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
@@ -225,6 +225,7 @@ export default function RenewalsTable({ opps, activeStage: _activeStage }: Props
             <th style={{ ...TH, width: 140 }}>Stage</th>
             <th style={{ ...TH, width: 140 }}>Type</th>
             <th style={{ ...TH, width: 110, textAlign: 'center' }}>Do Not Auto Renew</th>
+            <th style={{ ...TH, width: 150 }}>Pricebook</th>
             <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
             </th>
@@ -275,6 +276,9 @@ export default function RenewalsTable({ opps, activeStage: _activeStage }: Props
                 </td>
                 <td style={{ ...TD, width: 110, textAlign: 'center' }}>
                   <BoolCell value={opp.Do_Not_Auto_Renew__c} />
+                </td>
+                <td style={{ ...TD, width: 150, color: 'var(--fg-2)', fontSize: 13 }}>
+                  {opp['Pricebook2.Name'] ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}
                 </td>
                 <td style={{ ...AMT_TD, width: 120 }}>
                   <CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} />

@@ -200,6 +200,7 @@ export interface SFRenewalOpp {
   Auto_Renewal_Amount_NZD__c: number | null
   Auto_Renewal_Net_ARR__c: number | null
   Auto_Renewal_Net_ARR_NZD__c: number | null
+  'Pricebook2.Name': string | null
 }
 
 export interface SFExpansionOpp {
@@ -228,4 +229,5 @@ export interface SFExpansionOpp {
   Net_ARR_NZD__c: number | null
   Booked_ARR_NZD__c: number | null
   ARR_Basis_NZD__c: number | null
+  'Pricebook2.Name': string | null
 }

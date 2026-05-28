@@ -766,6 +766,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 26400,
     Auto_Renewal_Net_ARR__c: 0,
     Auto_Renewal_Net_ARR_NZD__c: 0,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_002',
@@ -800,6 +801,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 52800,
     Auto_Renewal_Net_ARR__c: 0,
     Auto_Renewal_Net_ARR_NZD__c: 0,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_003',
@@ -834,6 +836,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 63800,
     Auto_Renewal_Net_ARR__c: -4000,
     Auto_Renewal_Net_ARR_NZD__c: -4400,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_004',
@@ -868,6 +871,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 124300,
     Auto_Renewal_Net_ARR__c: 18000,
     Auto_Renewal_Net_ARR_NZD__c: 19800,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_005',
@@ -902,6 +906,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 39710,
     Auto_Renewal_Net_ARR__c: -1900,
     Auto_Renewal_Net_ARR_NZD__c: -2090,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_006',
@@ -936,6 +941,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 78100,
     Auto_Renewal_Net_ARR__c: 0,
     Auto_Renewal_Net_ARR_NZD__c: 0,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_007',
@@ -970,6 +976,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 31900,
     Auto_Renewal_Net_ARR__c: 0,
     Auto_Renewal_Net_ARR_NZD__c: 0,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'ren_008',
@@ -1004,6 +1011,7 @@ export const MOCK_RENEWALS: SFRenewalOpp[] = [
     Auto_Renewal_Amount_NZD__c: 19800,
     Auto_Renewal_Net_ARR__c: 0,
     Auto_Renewal_Net_ARR_NZD__c: 0,
+    'Pricebook2.Name': 'Standard Price Book',
   },
 ]
 
@@ -1033,6 +1041,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 13200,
     Booked_ARR_NZD__c: null,
     ARR_Basis_NZD__c: 16500,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'exp_002',
@@ -1059,6 +1068,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 27500,
     Booked_ARR_NZD__c: null,
     ARR_Basis_NZD__c: 38500,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'exp_003',
@@ -1085,6 +1095,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 19800,
     Booked_ARR_NZD__c: null,
     ARR_Basis_NZD__c: 24200,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'exp_004',
@@ -1111,6 +1122,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 35200,
     Booked_ARR_NZD__c: null,
     ARR_Basis_NZD__c: 49500,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'exp_005',
@@ -1137,6 +1149,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 16500,
     Booked_ARR_NZD__c: 16500,
     ARR_Basis_NZD__c: 30800,
+    'Pricebook2.Name': 'Standard Price Book',
   },
   {
     Id: 'exp_006',
@@ -1163,6 +1176,7 @@ export const MOCK_EXPANSIONS: SFExpansionOpp[] = [
     Net_ARR_NZD__c: 8800,
     Booked_ARR_NZD__c: 0,
     ARR_Basis_NZD__c: 22000,
+    'Pricebook2.Name': 'Standard Price Book',
   },
 ]
 
