@@ -87,7 +87,7 @@ export function getRenewalFlags(opp: SFRenewalOpp): string[] {
   if (WORKING_STAGES.has(opp.StageName) && !opp.Type) {
     flags.push('type-empty')
   }
-  if (opp.StageName === 'Pending' && !!opp.Type) {
+  if (opp.StageName === 'Pending' && !!opp.Type && opp.Type !== 'Price Increase' && opp.Type !== 'Flat') {
     flags.push('pending-with-type')
   }
   if (EXPANSION_TYPES.has(opp.Type ?? '')) {
