@@ -1,44 +1,21 @@
 'use client'
 
-import { useState } from 'react'
-import type { SFExpansionOpp } from '@/lib/types'
-import { getExpansionFlags } from '@/lib/csHygiene'
+import type { SFRenewalOpp, RenewalStage } from '@/lib/types'
+import { getRenewalFlags } from '@/lib/csHygiene'
 import FlagsCell from './FlagsCell'
+import { shortDate, fmtCurrency } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
 import DatePill from '@/components/ui/DatePill'
-import { shortDate, fmtCurrency } from '@/lib/formatters'
 import { FS } from '@/lib/fontSizes'
 
 interface Props {
-  opps: SFExpansionOpp[]
+  opps: SFRenewalOpp[]
+  activeTile: string | null
 }
 
-type SortCol = 'flags' | 'arr_basis' | 'booked_arr' | 'net_arr' | 'contract_end_date' | 'close_date'
-type SortDir = 'asc' | 'desc'
+const CLOSED_STAGES = new Set<RenewalStage>(['Closed Won', 'Closed Lost - Churned'])
 
-function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
-  const active = sortCol === col
-  return (
-    <span style={{ marginLeft: 4, fontSize: 10, color: active ? 'var(--fg-1)' : 'var(--fg-3)', flexShrink: 0 }}>
-      {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
-    </span>
-  )
-}
-
-function d(s: string | null | undefined): number { return s ? new Date(s).getTime() : 0 }
-
-function getSortVal(opp: SFExpansionOpp, col: SortCol): number {
-  switch (col) {
-    case 'flags':              return getExpansionFlags(opp).length
-    case 'arr_basis':          return opp.ARR_Basis_NZD__c ?? opp.ARR_Basis__c ?? 0
-    case 'booked_arr':         return opp.Booked_ARR_NZD__c ?? opp.Booked_ARR__c ?? 0
-    case 'net_arr':            return opp.Net_ARR_NZD__c ?? opp.Net_ARR__c ?? 0
-    case 'contract_end_date':  return d(opp.SaaSOptics_Contract_End_Date__c)
-    case 'close_date':         return d(opp.CloseDate)
-  }
-}
-
-const CLOSED_STAGES = new Set(['Closed Won', 'Closed Lost'])
+const IN_PROGRESS_STAGE_ORDER = ['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing']
 
 const TH: React.CSSProperties = {
   padding: '10px 14px',
@@ -92,14 +69,15 @@ const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
 }
 
 const STAGE_COLORS: Record<string, { bg: string; color: string }> = {
-  'Qualifying':       { bg: 'rgba(59,130,246,0.12)',  color: '#1d4ed8' },
-  'Evaluation':       { bg: 'rgba(99,102,241,0.12)',  color: '#4338ca' },
-  'Proposal':         { bg: 'rgba(139,92,246,0.12)',  color: '#6d28d9' },
-  'Negotiation':      { bg: 'rgba(245,158,11,0.12)',  color: '#92400e' },
-  'Closing':          { bg: 'rgba(34,197,94,0.12)',   color: '#15803d' },
-  'Closed Won':       { bg: 'var(--green-50)',         color: 'var(--green-700)' },
-  'Closed Lost':      { bg: 'var(--red-50)',           color: 'var(--red-700)' },
-  'Closed - Recycle': { bg: 'var(--bg-subtle)',        color: 'var(--fg-3)' },
+  'Pending':               { bg: 'var(--bg-subtle)',          color: 'var(--fg-3)' },
+  'Qualifying':            { bg: 'rgba(59,130,246,0.12)',     color: '#1d4ed8' },
+  'Evaluation':            { bg: 'rgba(99,102,241,0.12)',     color: '#4338ca' },
+  'Proposal':              { bg: 'rgba(139,92,246,0.12)',     color: '#6d28d9' },
+  'Negotiation':           { bg: 'rgba(245,158,11,0.12)',     color: '#92400e' },
+  'Closing':               { bg: 'rgba(34,197,94,0.12)',      color: '#15803d' },
+  'Closed Won':            { bg: 'var(--green-50)',           color: 'var(--green-700)' },
+  'Closed Lost - Churned': { bg: 'var(--red-50)',             color: 'var(--red-700)' },
+  'Closed - Recycle':      { bg: 'var(--bg-subtle)',          color: 'var(--fg-3)' },
 }
 
 function TypeCell({ value }: { value: string | null | undefined }) {
@@ -121,11 +99,34 @@ function StageCell({ stage }: { stage: string }) {
   )
 }
 
-function LongTextCell({ value }: { value: string | null | undefined }) {
+function ExpansionStatusCell({ value }: { value: string | null | undefined }) {
+  if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  const isExpansion = value !== 'No Expansion'
+  return (
+    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap', background: isExpansion ? 'var(--green-50)' : 'var(--bg-subtle)', color: isExpansion ? 'var(--green-700)' : 'var(--fg-3)' }}>
+      {value}
+    </span>
+  )
+}
+
+function LongTextCell({ value, orange }: { value: string | null | undefined; orange?: boolean }) {
   if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
   return (
-    <span style={{ color: 'var(--fg-2)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+    <span style={{ color: orange ? 'var(--orange-700)' : 'var(--fg-2)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
       {value}
+    </span>
+  )
+}
+
+function BoolCell({ value }: { value: boolean | null | undefined }) {
+  if (value == null) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  return (
+    <span style={{
+      display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+      background: value ? 'var(--red-50)' : 'var(--bg-subtle)',
+      color: value ? 'var(--red-700)' : 'var(--fg-3)',
+    }}>
+      {value ? 'Yes' : 'No'}
     </span>
   )
 }
@@ -152,62 +153,46 @@ function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
   )
 }
 
-export default function ExpansionsTable({ opps }: Props) {
-  const [sortCol, setSortCol] = useState<SortCol | null>(null)
-  const [sortDir, setSortDir] = useState<SortDir>('desc')
-
-  function toggleSort(col: SortCol) {
-    setSortCol(prev => {
-      if (prev !== col) { setSortDir('desc'); return col }
-      if (sortDir === 'desc') { setSortDir('asc'); return col }
-      setSortDir('desc'); return null
-    })
-  }
-
-  const sorted = sortCol === null ? opps : [...opps].sort((a, b) => {
-    const diff = getSortVal(a, sortCol) - getSortVal(b, sortCol)
-    return sortDir === 'desc' ? -diff : diff
+export default function ClosingSoonRenewalsTable({ opps, activeTile }: Props) {
+  const sorted = [...opps].sort((a, b) => {
+    if (activeTile === 'in_progress') {
+      const ai = IN_PROGRESS_STAGE_ORDER.indexOf(a.StageName)
+      const bi = IN_PROGRESS_STAGE_ORDER.indexOf(b.StageName)
+      const stageDiff = (ai === -1 ? IN_PROGRESS_STAGE_ORDER.length : ai) - (bi === -1 ? IN_PROGRESS_STAGE_ORDER.length : bi)
+      if (stageDiff !== 0) return stageDiff
+    }
+    return new Date(a.CloseDate).getTime() - new Date(b.CloseDate).getTime()
   })
-
-  const sortProps = { sortCol, sortDir }
 
   if (opps.length === 0) {
     return (
       <div style={{ padding: '32px 0', textAlign: 'center', color: 'var(--fg-3)', ...FS.base }}>
-        No expansions in this stage.
+        No renewals match the current filters.
       </div>
     )
   }
 
   return (
     <div style={{ overflowX: 'auto', position: 'relative' }}>
-      <table style={{ width: '100%', minWidth: 2820, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <table style={{ width: '100%', minWidth: 3360, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead>
           <tr>
             <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
-            <th onClick={() => toggleSort('flags')} style={{ ...TH, width: 80, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Flags<SortIcon col="flags" {...sortProps} /></span>
-            </th>
+            <th style={{ ...TH, width: 80 }}>Flags</th>
             <th style={{ ...TH, width: 130 }}>Owner</th>
-            <th onClick={() => toggleSort('contract_end_date')} style={{ ...TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Contract End Date<SortIcon col="contract_end_date" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('close_date')} style={{ ...TH, width: 100, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Close Date<SortIcon col="close_date" {...sortProps} /></span>
-            </th>
+            <th style={{ ...TH, width: 110 }}>Renewal Date</th>
+            <th style={{ ...TH, width: 100 }}>Close Date ↑</th>
             <th style={{ ...TH, width: 140 }}>Stage</th>
             <th style={{ ...TH, width: 140 }}>Type</th>
-            <th style={{ ...TH, width: 140 }}>Category</th>
+            <th style={{ ...TH, width: 110, textAlign: 'center' }}>Do Not Auto Renew</th>
             <th style={{ ...TH, width: 300 }}>Pricebook</th>
-            <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Booked ARR<SortIcon col="booked_arr" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
-            </th>
+            <th style={{ ...AMT_TH, width: 120 }}>ARR Basis</th>
+            <th style={{ ...AMT_TH, width: 150 }}>Auto Renewal Amount</th>
+            <th style={{ ...AMT_TH, width: 130 }}>Auto Renewal Net ARR</th>
+            <th style={{ ...AMT_TH, width: 120 }}>Opp ARR</th>
+            <th style={{ ...AMT_TH, width: 120 }}>Opp Net ARR</th>
+            <th style={{ ...TH, width: 300 }}>Risk Notes</th>
+            <th style={{ ...TH, width: 140 }}>Expansion Status</th>
             <th style={{ ...TH, width: 360 }}>Expansion Notes</th>
             <th style={{ ...TH, width: 360 }}>Next Step</th>
           </tr>
@@ -222,12 +207,12 @@ export default function ExpansionsTable({ opps }: Props) {
                   <SalesforceLink label={opp.Name} opportunityId={opp.Id} />
                 </td>
                 <td style={{ ...TD, width: 80 }}>
-                  <FlagsCell flags={getExpansionFlags(opp)} />
+                  <FlagsCell flags={getRenewalFlags(opp)} />
                 </td>
                 <td style={{ ...TD, width: 130, color: 'var(--fg-2)' }}>{opp['Owner.Name']}</td>
-                <td style={{ ...TD, width: 120 }}>
-                  {opp.SaaSOptics_Contract_End_Date__c
-                    ? <span style={{ fontSize: 13, color: 'var(--fg)', whiteSpace: 'nowrap' }}>{shortDate(opp.SaaSOptics_Contract_End_Date__c)}</span>
+                <td style={{ ...TD, width: 110 }}>
+                  {opp.Renewal_Date_1__c
+                    ? <span style={{ fontSize: 13, color: 'var(--fg)', whiteSpace: 'nowrap' }}>{shortDate(opp.Renewal_Date_1__c)}</span>
                     : <span style={{ color: 'var(--fg-3)' }}>—</span>}
                 </td>
                 <td style={{ ...TD, width: 100 }}>
@@ -239,8 +224,8 @@ export default function ExpansionsTable({ opps }: Props) {
                 <td style={{ ...TD, width: 140 }}>
                   <TypeCell value={opp.Type} />
                 </td>
-                <td style={{ ...TD, width: 140, color: 'var(--fg-2)', fontSize: 13 }}>
-                  {opp.Category__c ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}
+                <td style={{ ...TD, width: 110, textAlign: 'center' }}>
+                  <BoolCell value={opp.Do_Not_Auto_Renew__c} />
                 </td>
                 <td style={{ ...TD, width: 300, color: 'var(--fg-2)', fontSize: 13 }}>
                   {opp['Pricebook2.Name'] ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}
@@ -248,11 +233,23 @@ export default function ExpansionsTable({ opps }: Props) {
                 <td style={{ ...AMT_TD, width: 120 }}>
                   <CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} />
                 </td>
+                <td style={{ ...AMT_TD, width: 150 }}>
+                  <CurrencyPairCell value={opp.Auto_Renewal_Amount__c} code={code} nzdValue={opp.Auto_Renewal_Amount_NZD__c} />
+                </td>
+                <td style={{ ...AMT_TD, width: 130 }}>
+                  <CurrencyPairCell value={opp.Auto_Renewal_Net_ARR__c} code={code} nzdValue={opp.Auto_Renewal_Net_ARR_NZD__c} signed />
+                </td>
                 <td style={{ ...AMT_TD, width: 120 }}>
                   <CurrencyPairCell value={opp.Booked_ARR__c} code={code} nzdValue={opp.Booked_ARR_NZD__c} />
                 </td>
                 <td style={{ ...AMT_TD, width: 120 }}>
                   <CurrencyPairCell value={opp.Net_ARR__c} code={code} nzdValue={opp.Net_ARR_NZD__c} signed />
+                </td>
+                <td style={{ ...TD, width: 300 }}>
+                  <LongTextCell value={opp.Renewal_Risk_Notes__c} orange />
+                </td>
+                <td style={{ ...TD, width: 140 }}>
+                  <ExpansionStatusCell value={opp.Expansion_Status__c} />
                 </td>
                 <td style={{ ...TD, width: 360 }}>
                   <LongTextCell value={opp.Expansion_Notes__c} />

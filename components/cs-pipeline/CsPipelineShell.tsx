@@ -7,6 +7,8 @@ import StageBar from './StageBar'
 import RenewalsTable from './RenewalsTable'
 import ExpansionsTable from './ExpansionsTable'
 import AllDealsTable from './AllDealsTable'
+import ClosingSoonRenewalsTable from './ClosingSoonRenewalsTable'
+import RepBreakdownWidget from './RepBreakdownWidget'
 import CsZeroBoard from './CsZeroBoard'
 import CsFilters from './CsFilters'
 import { FS } from '@/lib/fontSizes'
@@ -32,6 +34,11 @@ interface Props {
   availablePricebooks: string[]
   activePricebooks: string[]
   activeAutoRenewalDir: string | null
+  activeWidget: string | null
+  widgetCounts: { auto_renewal_lte_zero: number; inactive_pricebook: number }
+  activeTile: string | null
+  tileCounts: { total: number; pending_auto: number; flagged_auto: number; do_not_auto: number; in_progress: number }
+  closingSoonBaseOpps: SFRenewalOpp[]
 }
 
 const TYPE_ORDER = [
@@ -108,6 +115,37 @@ function computeAllStats(renewals: SFRenewalOpp[], expansions: SFExpansionOpp[],
   })
 }
 
+function KpiWidget({ id, title, description, count, active, onClick }: {
+  id: string; title: string; description: string; count: number; active: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        padding: '16px 20px',
+        borderRadius: 8,
+        border: `1.5px solid ${active ? 'var(--navy-900)' : 'var(--border)'}`,
+        background: active ? 'var(--navy-900)' : 'var(--bg)',
+        textAlign: 'left',
+        cursor: 'pointer',
+        fontFamily: 'inherit',
+        transition: 'background 120ms, border-color 120ms',
+      }}
+    >
+      <div style={{ fontSize: 30, fontWeight: 700, fontVariantNumeric: 'tabular-nums', lineHeight: 1, marginBottom: 8, color: active ? '#fff' : 'var(--fg-1)' }}>
+        {count}
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: active ? 'rgba(255,255,255,0.9)' : 'var(--fg-1)' }}>
+        {title}
+      </div>
+      <div style={{ fontSize: 12, color: active ? 'rgba(255,255,255,0.6)' : 'var(--fg-3)', lineHeight: 1.4 }}>
+        {description}
+      </div>
+    </button>
+  )
+}
+
 function ViewTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -151,6 +189,11 @@ export default function CsPipelineShell({
   availablePricebooks,
   activePricebooks,
   activeAutoRenewalDir,
+  activeWidget,
+  widgetCounts,
+  activeTile,
+  tileCounts,
+  closingSoonBaseOpps,
 }: Props) {
   const router = useRouter()
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done'>('idle')
@@ -172,13 +215,40 @@ export default function CsPipelineShell({
     if (activeOwner) p.set('owner', activeOwner)
     if (targetView === 'renewals') p.set('recordType', 'renewals')
     else if (targetView === 'expansions') p.set('recordType', 'expansions')
-    else if (targetView !== 'hygiene' && targetView !== 'revops' && activeRecordType) p.set('recordType', activeRecordType)
+    else if (targetView !== 'hygiene' && targetView !== 'revops' && targetView !== 'closing-soon' && activeRecordType) p.set('recordType', activeRecordType)
     if (targetView !== 'hygiene' && activeTypes.length > 0) p.set('types', activeTypes.join(','))
     if (activeDatePreset) {
       p.set('datePreset', activeDatePreset)
       if (activeDatePreset === 'custom' && activeFrom) p.set('from', activeFrom)
       if (activeDatePreset === 'custom' && activeTo) p.set('to', activeTo)
     }
+    router.push(`/cs-pipeline?${p.toString()}`)
+  }
+
+  function handleWidgetClick(widgetId: string) {
+    const p = new URLSearchParams()
+    p.set('view', 'revops')
+    if (activeOwner) p.set('owner', activeOwner)
+    if (activeDatePreset) {
+      p.set('datePreset', activeDatePreset)
+      if (activeDatePreset === 'custom' && activeFrom) p.set('from', activeFrom)
+      if (activeDatePreset === 'custom' && activeTo) p.set('to', activeTo)
+    }
+    if (activeWidget !== widgetId) p.set('widget', widgetId)
+    router.push(`/cs-pipeline?${p.toString()}`)
+  }
+
+  function handleTileClick(tileId: string) {
+    const p = new URLSearchParams()
+    p.set('view', 'closing-soon')
+    if (activeOwner) p.set('owner', activeOwner)
+    if (activeDatePreset) {
+      p.set('datePreset', activeDatePreset)
+      if (activeDatePreset === 'custom' && activeFrom) p.set('from', activeFrom)
+      if (activeDatePreset === 'custom' && activeTo) p.set('to', activeTo)
+    }
+    if (activeTypes.length > 0) p.set('types', activeTypes.join(','))
+    if (tileId !== 'total' && activeTile !== tileId) p.set('tile', tileId)
     router.push(`/cs-pipeline?${p.toString()}`)
   }
 
@@ -200,7 +270,8 @@ export default function CsPipelineShell({
   const isAll = activeView === 'all'
   const isHygiene = activeView === 'hygiene'
   const isRevOps = activeView === 'revops'
-  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps
+  const isClosingSoon = activeView === 'closing-soon'
+  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps && !isClosingSoon
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const minClosedDate = activeDatePreset?.startsWith('next_') ? todayStr : null
@@ -219,37 +290,47 @@ export default function CsPipelineShell({
 
   const count = isRevOps
     ? renewalOpps.length + expansionOpps.length
-    : isAll
-      ? filteredRenewals.length + filteredExpansions.length
-      : isRenewals ? filteredRenewals.length : filteredExpansions.length
+    : isClosingSoon
+      ? renewalOpps.length
+      : isAll
+        ? filteredRenewals.length + filteredExpansions.length
+        : isRenewals ? filteredRenewals.length : filteredExpansions.length
 
   const owners = (isAll || isHygiene || isRevOps)
     ? [...new Set([...renewalOwners, ...expansionOwners])].sort()
-    : isRenewals ? renewalOwners : expansionOwners
+    : (isRenewals || isClosingSoon) ? renewalOwners : expansionOwners
 
   const availableTypes = sortByTypeOrder(
     (isAll || isRevOps)
       ? [...new Set([...renewalTypes, ...expansionTypes])]
-      : isRenewals ? renewalTypes : expansionTypes
+      : (isRenewals || isClosingSoon) ? renewalTypes : expansionTypes
   )
 
   return (
     <div>
       {/* View toggle + sync button */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div style={{
-          display: 'inline-flex',
-          gap: 4,
-          padding: 4,
-          borderRadius: 8,
-          background: 'var(--bg-subtle)',
-          border: '1px solid var(--border)',
-        }}>
-          <ViewTab label="All Deals" active={isAll} onClick={() => switchView('all')} />
-          <ViewTab label="Renewals" active={isRenewals} onClick={() => switchView('renewals')} />
-          <ViewTab label="Expansions" active={isExpansions} onClick={() => switchView('expansions')} />
-          <ViewTab label="RevOps" active={isRevOps} onClick={() => switchView('revops')} />
-          <ViewTab label="Pipeline Hygiene" active={isHygiene} onClick={() => switchView('hygiene')} />
+      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Pipeline Views
+            </div>
+            <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+              <ViewTab label="All Deals" active={isAll} onClick={() => switchView('all')} />
+              <ViewTab label="Renewals" active={isRenewals} onClick={() => switchView('renewals')} />
+              <ViewTab label="Expansions" active={isExpansions} onClick={() => switchView('expansions')} />
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              Custom Dashboards
+            </div>
+            <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
+              <ViewTab label="Pipeline Hygiene" active={isHygiene} onClick={() => switchView('hygiene')} />
+              <ViewTab label="Renewals Closing Soon" active={isClosingSoon} onClick={() => switchView('closing-soon')} />
+              <ViewTab label="RevOps" active={isRevOps} onClick={() => switchView('revops')} />
+            </div>
+          </div>
         </div>
         <button
           onClick={handleSync}
@@ -270,6 +351,28 @@ export default function CsPipelineShell({
         </button>
       </div>
 
+      {/* KPI widgets — RevOps only, shown before filters */}
+      {isRevOps && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, maxWidth: 780 }}>
+          <KpiWidget
+            id="auto_renewal_lte_zero"
+            title="Auto-Renewal Net ARR ≤ 0"
+            description="Renewals in open stages with negative or zero auto-renewal ARR"
+            count={widgetCounts.auto_renewal_lte_zero}
+            active={activeWidget === 'auto_renewal_lte_zero'}
+            onClick={() => handleWidgetClick('auto_renewal_lte_zero')}
+          />
+          <KpiWidget
+            id="inactive_pricebook"
+            title="Inactive Pricebook"
+            description="Open deals not on a 2026 Q1 pricebook"
+            count={widgetCounts.inactive_pricebook}
+            active={activeWidget === 'inactive_pricebook'}
+            onClick={() => handleWidgetClick('inactive_pricebook')}
+          />
+        </div>
+      )}
+
       {/* Filters */}
       <CsFilters
         owners={owners}
@@ -284,17 +387,85 @@ export default function CsPipelineShell({
         activeStage={activeStage}
         showRecordType={!isHygiene}
         showType={!isHygiene}
-        lockedRecordType={isRenewals ? 'renewals' : isExpansions ? 'expansions' : undefined}
+        lockedRecordType={isRenewals || isClosingSoon ? 'renewals' : isExpansions ? 'expansions' : undefined}
         showRevOpsFilters={isRevOps}
         availableStages={availableStages}
         activeStages={activeStages}
         availablePricebooks={availablePricebooks}
         activePricebooks={activePricebooks}
         activeAutoRenewalDir={activeAutoRenewalDir}
+        activeWidget={activeWidget}
+        activeTile={activeTile}
       />
 
       {isHygiene ? (
         <CsZeroBoard renewalOpps={renewalOpps} expansionOpps={expansionOpps} activeRep={activeRep} />
+      ) : isClosingSoon ? (
+        <>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, maxWidth: 1040 }}>
+            <KpiWidget
+              id="total"
+              title="Total Renewals"
+              description="All open renewals in the current period"
+              count={tileCounts.total}
+              active={activeTile === null}
+              onClick={() => handleTileClick('total')}
+            />
+            <KpiWidget
+              id="pending_auto"
+              title="Pending Auto-Renewals"
+              description="Stage is Pending, Do Not Auto Renew is off"
+              count={tileCounts.pending_auto}
+              active={activeTile === 'pending_auto'}
+              onClick={() => handleTileClick('pending_auto')}
+            />
+            <KpiWidget
+              id="flagged_auto"
+              title="Flagged Auto-Renewals"
+              description="Pending auto-renewals with 1 or more hygiene flags"
+              count={tileCounts.flagged_auto}
+              active={activeTile === 'flagged_auto'}
+              onClick={() => handleTileClick('flagged_auto')}
+            />
+            <KpiWidget
+              id="do_not_auto"
+              title="Do Not Auto Renew"
+              description="Any open stage with Do Not Auto Renew enabled"
+              count={tileCounts.do_not_auto}
+              active={activeTile === 'do_not_auto'}
+              onClick={() => handleTileClick('do_not_auto')}
+            />
+            <KpiWidget
+              id="in_progress"
+              title="Renewals In Progress"
+              description="Active stage — not pending or closed"
+              count={tileCounts.in_progress}
+              active={activeTile === 'in_progress'}
+              onClick={() => handleTileClick('in_progress')}
+            />
+          </div>
+          <RepBreakdownWidget opps={closingSoonBaseOpps} />
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>
+                {activeTile === 'pending_auto' ? 'Pending Auto-Renewals'
+                  : activeTile === 'flagged_auto' ? 'Flagged Auto-Renewals'
+                  : activeTile === 'do_not_auto' ? 'Do Not Auto Renew'
+                  : activeTile === 'in_progress' ? 'Renewals In Progress'
+                  : 'All Open Renewals'}
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                padding: '1px 8px', borderRadius: 999,
+                background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                fontSize: 11, fontWeight: 600, color: 'var(--fg-2)',
+              }}>
+                {count} deal{count !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <ClosingSoonRenewalsTable opps={renewalOpps} activeTile={activeTile} />
+          </div>
+        </>
       ) : isRevOps ? (
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
           <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>

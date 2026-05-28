@@ -24,6 +24,8 @@ interface Props {
   availablePricebooks?: string[]
   activePricebooks?: string[]
   activeAutoRenewalDir?: string | null
+  activeWidget?: string | null
+  activeTile?: string | null
 }
 
 const DATE_PRESETS = [
@@ -239,6 +241,8 @@ export default function CsFilters({
   availablePricebooks = [],
   activePricebooks = [],
   activeAutoRenewalDir = null,
+  activeWidget = null,
+  activeTile = null,
 }: Props) {
   const router = useRouter()
 
@@ -247,7 +251,7 @@ export default function CsFilters({
 
   const isCustom = activeDatePreset === 'custom'
 
-  function baseParams(overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir', string | null>>) {
+  function baseParams(overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir' | 'widget' | 'tile', string | null>>) {
     return {
       view:           activeView,
       stage:          activeStage,
@@ -257,12 +261,14 @@ export default function CsFilters({
       to:             isCustom ? (activeTo   ?? null) : null,
       recordType:     activeRecordType,
       autoRenewalDir: activeAutoRenewalDir,
+      widget:         activeWidget,
+      tile:           activeTile,
       ...overrides,
     }
   }
 
   function update(
-    overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir', string | null>>,
+    overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir' | 'widget' | 'tile', string | null>>,
     typesOverride?: string[],
     stagesOverride?: string[],
     pricebooksOverride?: string[],
@@ -319,6 +325,7 @@ export default function CsFilters({
     || (showRevOpsFilters && activeStages.length > 0)
     || (showRevOpsFilters && activePricebooks.length > 0)
     || (showRevOpsFilters && !!activeAutoRenewalDir)
+    || (showRevOpsFilters && !!activeWidget)
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -435,25 +442,33 @@ export default function CsFilters({
           {availablePricebooks.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               <Label>Pricebook</Label>
-              <TypeDropdown
-                availableTypes={availablePricebooks}
-                activeTypes={activePricebooks}
-                onToggle={togglePricebook}
-                placeholder="All pricebooks"
-              />
+              {activeWidget === 'inactive_pricebook' ? (
+                <LockedBadge>Inactive pricebooks</LockedBadge>
+              ) : (
+                <TypeDropdown
+                  availableTypes={availablePricebooks}
+                  activeTypes={activePricebooks}
+                  onToggle={togglePricebook}
+                  placeholder="All pricebooks"
+                />
+              )}
             </div>
           )}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <Label>Auto Renewal Net ARR</Label>
-            <select
-              value={activeAutoRenewalDir ?? ''}
-              onChange={e => update({ autoRenewalDir: e.target.value || null })}
-              style={SELECT_STYLE}
-            >
-              <option value="">All</option>
-              <option value="positive">▲ Positive (&gt; 0)</option>
-              <option value="negative">▼ Negative (&lt; 0)</option>
-            </select>
+            {activeWidget === 'auto_renewal_lte_zero' ? (
+              <LockedBadge>▼ ≤ 0</LockedBadge>
+            ) : (
+              <select
+                value={activeAutoRenewalDir ?? ''}
+                onChange={e => update({ autoRenewalDir: e.target.value || null })}
+                style={SELECT_STYLE}
+              >
+                <option value="">All</option>
+                <option value="positive">▲ Positive (&gt; 0)</option>
+                <option value="negative">▼ Negative (&lt; 0)</option>
+              </select>
+            )}
           </div>
         </>
       )}
@@ -461,7 +476,7 @@ export default function CsFilters({
       {/* Clear all */}
       {hasFilters && (
         <button
-          onClick={() => update({ owner: null, datePreset: null, from: null, to: null, recordType: lockedRecordType ?? null, autoRenewalDir: null }, [], [], [])}
+          onClick={() => update({ owner: null, datePreset: null, from: null, to: null, recordType: lockedRecordType ?? null, autoRenewalDir: null, widget: null }, [], [], [])}
           style={{
             height: 34, padding: '0 12px', borderRadius: 6,
             border: '1px solid var(--border)', background: 'transparent',
