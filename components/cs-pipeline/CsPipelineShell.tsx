@@ -27,6 +27,11 @@ interface Props {
   activeRecordType: string | null
   activeTypes: string[]
   activeRep: string | null
+  availableStages: string[]
+  activeStages: string[]
+  availablePricebooks: string[]
+  activePricebooks: string[]
+  activeAutoRenewalDir: string | null
 }
 
 const TYPE_ORDER = [
@@ -141,6 +146,11 @@ export default function CsPipelineShell({
   activeRecordType,
   activeTypes,
   activeRep,
+  availableStages,
+  activeStages,
+  availablePricebooks,
+  activePricebooks,
+  activeAutoRenewalDir,
 }: Props) {
   const router = useRouter()
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done'>('idle')
@@ -162,7 +172,7 @@ export default function CsPipelineShell({
     if (activeOwner) p.set('owner', activeOwner)
     if (targetView === 'renewals') p.set('recordType', 'renewals')
     else if (targetView === 'expansions') p.set('recordType', 'expansions')
-    else if (targetView !== 'hygiene' && activeRecordType) p.set('recordType', activeRecordType)
+    else if (targetView !== 'hygiene' && targetView !== 'revops' && activeRecordType) p.set('recordType', activeRecordType)
     if (targetView !== 'hygiene' && activeTypes.length > 0) p.set('types', activeTypes.join(','))
     if (activeDatePreset) {
       p.set('datePreset', activeDatePreset)
@@ -189,7 +199,8 @@ export default function CsPipelineShell({
   const isExpansions = activeView === 'expansions'
   const isAll = activeView === 'all'
   const isHygiene = activeView === 'hygiene'
-  const isRenewals = !isExpansions && !isAll && !isHygiene
+  const isRevOps = activeView === 'revops'
+  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const minClosedDate = activeDatePreset?.startsWith('next_') ? todayStr : null
@@ -206,16 +217,18 @@ export default function CsPipelineShell({
     ? expansionOpps.filter(o => stageMatches(o.StageName, activeStage))
     : expansionOpps.filter(o => !o.StageName.includes('Closed'))
 
-  const count = isAll
-    ? filteredRenewals.length + filteredExpansions.length
-    : isRenewals ? filteredRenewals.length : filteredExpansions.length
+  const count = isRevOps
+    ? renewalOpps.length + expansionOpps.length
+    : isAll
+      ? filteredRenewals.length + filteredExpansions.length
+      : isRenewals ? filteredRenewals.length : filteredExpansions.length
 
-  const owners = (isAll || isHygiene)
+  const owners = (isAll || isHygiene || isRevOps)
     ? [...new Set([...renewalOwners, ...expansionOwners])].sort()
     : isRenewals ? renewalOwners : expansionOwners
 
   const availableTypes = sortByTypeOrder(
-    isAll
+    (isAll || isRevOps)
       ? [...new Set([...renewalTypes, ...expansionTypes])]
       : isRenewals ? renewalTypes : expansionTypes
   )
@@ -235,6 +248,7 @@ export default function CsPipelineShell({
           <ViewTab label="All Deals" active={isAll} onClick={() => switchView('all')} />
           <ViewTab label="Renewals" active={isRenewals} onClick={() => switchView('renewals')} />
           <ViewTab label="Expansions" active={isExpansions} onClick={() => switchView('expansions')} />
+          <ViewTab label="RevOps" active={isRevOps} onClick={() => switchView('revops')} />
           <ViewTab label="Pipeline Hygiene" active={isHygiene} onClick={() => switchView('hygiene')} />
         </div>
         <button
@@ -271,10 +285,31 @@ export default function CsPipelineShell({
         showRecordType={!isHygiene}
         showType={!isHygiene}
         lockedRecordType={isRenewals ? 'renewals' : isExpansions ? 'expansions' : undefined}
+        showRevOpsFilters={isRevOps}
+        availableStages={availableStages}
+        activeStages={activeStages}
+        availablePricebooks={availablePricebooks}
+        activePricebooks={activePricebooks}
+        activeAutoRenewalDir={activeAutoRenewalDir}
       />
 
       {isHygiene ? (
         <CsZeroBoard renewalOpps={renewalOpps} expansionOpps={expansionOpps} activeRep={activeRep} />
+      ) : isRevOps ? (
+        <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>RevOps</span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              padding: '1px 8px', borderRadius: 999,
+              background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+              fontSize: 11, fontWeight: 600, color: 'var(--fg-2)',
+            }}>
+              {count} deal{count !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <AllDealsTable renewals={renewalOpps} expansions={expansionOpps} />
+        </div>
       ) : (
         <>
           {/* Stage summary bar */}

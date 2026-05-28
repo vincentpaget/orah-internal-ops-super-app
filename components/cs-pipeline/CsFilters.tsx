@@ -18,6 +18,12 @@ interface Props {
   showRecordType?: boolean
   showType?: boolean
   lockedRecordType?: string
+  showRevOpsFilters?: boolean
+  availableStages?: string[]
+  activeStages?: string[]
+  availablePricebooks?: string[]
+  activePricebooks?: string[]
+  activeAutoRenewalDir?: string | null
 }
 
 const DATE_PRESETS = [
@@ -113,10 +119,12 @@ function TypeDropdown({
   availableTypes,
   activeTypes,
   onToggle,
+  placeholder = 'All types',
 }: {
   availableTypes: string[]
   activeTypes: string[]
   onToggle: (type: string) => void
+  placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -133,7 +141,7 @@ function TypeDropdown({
   }, [open])
 
   const label = activeTypes.length === 0
-    ? 'All types'
+    ? placeholder
     : activeTypes.length === 1
       ? activeTypes[0]
       : `${activeTypes.length} selected`
@@ -195,12 +203,19 @@ function TypeDropdown({
   )
 }
 
-function buildUrl(params: Record<string, string | null>, types: string[]) {
+function buildUrl(
+  params: Record<string, string | null>,
+  types: string[],
+  stages: string[],
+  pricebooks: string[],
+) {
   const p = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) {
     if (v) p.set(k, v)
   }
   if (types.length > 0) p.set('types', types.join(','))
+  if (stages.length > 0) p.set('stages', stages.join(','))
+  if (pricebooks.length > 0) p.set('pricebooks', pricebooks.join(','))
   return `/cs-pipeline?${p.toString()}`
 }
 
@@ -218,6 +233,12 @@ export default function CsFilters({
   showRecordType = true,
   showType = true,
   lockedRecordType,
+  showRevOpsFilters = false,
+  availableStages = [],
+  activeStages = [],
+  availablePricebooks = [],
+  activePricebooks = [],
+  activeAutoRenewalDir = null,
 }: Props) {
   const router = useRouter()
 
@@ -226,24 +247,32 @@ export default function CsFilters({
 
   const isCustom = activeDatePreset === 'custom'
 
-  function baseParams(overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType', string | null>>) {
+  function baseParams(overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir', string | null>>) {
     return {
-      view:       activeView,
-      stage:      activeStage,
-      owner:      activeOwner,
-      datePreset: activeDatePreset,
-      from:       isCustom ? (activeFrom ?? null) : null,
-      to:         isCustom ? (activeTo   ?? null) : null,
-      recordType: activeRecordType,
+      view:           activeView,
+      stage:          activeStage,
+      owner:          activeOwner,
+      datePreset:     activeDatePreset,
+      from:           isCustom ? (activeFrom ?? null) : null,
+      to:             isCustom ? (activeTo   ?? null) : null,
+      recordType:     activeRecordType,
+      autoRenewalDir: activeAutoRenewalDir,
       ...overrides,
     }
   }
 
   function update(
-    overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType', string | null>>,
+    overrides: Partial<Record<'owner' | 'datePreset' | 'from' | 'to' | 'recordType' | 'autoRenewalDir', string | null>>,
     typesOverride?: string[],
+    stagesOverride?: string[],
+    pricebooksOverride?: string[],
   ) {
-    router.push(buildUrl(baseParams(overrides), typesOverride ?? activeTypes))
+    router.push(buildUrl(
+      baseParams(overrides),
+      typesOverride    ?? activeTypes,
+      stagesOverride   ?? activeStages,
+      pricebooksOverride ?? activePricebooks,
+    ))
   }
 
   function handlePresetChange(value: string) {
@@ -269,10 +298,27 @@ export default function CsFilters({
     update({}, next)
   }
 
+  function toggleStage(stage: string) {
+    const next = activeStages.includes(stage)
+      ? activeStages.filter(s => s !== stage)
+      : [...activeStages, stage]
+    update({}, undefined, next)
+  }
+
+  function togglePricebook(pb: string) {
+    const next = activePricebooks.includes(pb)
+      ? activePricebooks.filter(p => p !== pb)
+      : [...activePricebooks, pb]
+    update({}, undefined, undefined, next)
+  }
+
   const hasFilters = activeOwner
     || activeDatePreset
     || (showType && activeTypes.length > 0)
     || (showRecordType && !lockedRecordType && activeRecordType)
+    || (showRevOpsFilters && activeStages.length > 0)
+    || (showRevOpsFilters && activePricebooks.length > 0)
+    || (showRevOpsFilters && !!activeAutoRenewalDir)
 
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
@@ -372,10 +418,50 @@ export default function CsFilters({
         </>
       )}
 
+      {/* RevOps filters */}
+      {showRevOpsFilters && (
+        <>
+          {availableStages.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Label>Stage</Label>
+              <TypeDropdown
+                availableTypes={availableStages}
+                activeTypes={activeStages}
+                onToggle={toggleStage}
+                placeholder="All stages"
+              />
+            </div>
+          )}
+          {availablePricebooks.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <Label>Pricebook</Label>
+              <TypeDropdown
+                availableTypes={availablePricebooks}
+                activeTypes={activePricebooks}
+                onToggle={togglePricebook}
+                placeholder="All pricebooks"
+              />
+            </div>
+          )}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <Label>Auto Renewal Net ARR</Label>
+            <select
+              value={activeAutoRenewalDir ?? ''}
+              onChange={e => update({ autoRenewalDir: e.target.value || null })}
+              style={SELECT_STYLE}
+            >
+              <option value="">All</option>
+              <option value="positive">▲ Positive (&gt; 0)</option>
+              <option value="negative">▼ Negative (&lt; 0)</option>
+            </select>
+          </div>
+        </>
+      )}
+
       {/* Clear all */}
       {hasFilters && (
         <button
-          onClick={() => update({ owner: null, datePreset: null, from: null, to: null, recordType: lockedRecordType ?? null }, [])}
+          onClick={() => update({ owner: null, datePreset: null, from: null, to: null, recordType: lockedRecordType ?? null, autoRenewalDir: null }, [], [], [])}
           style={{
             height: 34, padding: '0 12px', borderRadius: 6,
             border: '1px solid var(--border)', background: 'transparent',
