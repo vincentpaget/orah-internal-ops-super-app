@@ -3,11 +3,17 @@ import { SQO_STAGES, SAO_STAGES, STAGE_ORDER } from './types'
 
 const KNOWN_STAGES = new Set<StageName>(STAGE_ORDER)
 
+function startOfCurrentMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
 export function computeSQOFlags(opp: SFOpportunity): string[] {
   const flags: string[] = []
   if (opp.Economic_Buyer__c === 'Red') flags.push('No economic buyer')
   if (opp.Compelling_Event__c === 'Red') flags.push('No compelling event')
   if (!opp.Net_ARR_NZD__c) flags.push('ARR not set')
+  if (opp.CloseDate && opp.CloseDate < startOfCurrentMonth()) flags.push('Close date in past month')
   return flags
 }
 
@@ -20,6 +26,13 @@ export function computeSAOFlags(opp: SFOpportunity): string[] {
     flags.push('Re-engagement after close date')
   }
   if (!opp.Nurturing_Reason__c) flags.push('No nurturing reason')
+  if (opp.CloseDate && opp.CloseDate < startOfCurrentMonth()) flags.push('Close date in past month')
+  return flags
+}
+
+export function computeSQLFlags(opp: SFOpportunity): string[] {
+  const flags: string[] = []
+  if (opp.CloseDate && opp.CloseDate < startOfCurrentMonth()) flags.push('Close date in past month')
   return flags
 }
 
@@ -79,6 +92,7 @@ export function enrichOpportunity(opp: SFOpportunity): Opportunity {
     flags = computeSAOFlags(opp)
   } else if (normalizedStage === 'Qualifying') {
     sqlBucket = computeSQLBucket(opp)
+    flags = computeSQLFlags(opp)
   } else if (normalizedStage === 'Closed Lost') {
     flags = computeLostFlags(opp)
   } else if (normalizedStage === 'Closed Won') {

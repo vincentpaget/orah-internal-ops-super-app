@@ -131,7 +131,10 @@ export default function SQLHealthSection({ opps }: Props) {
                     <TruncatedText text={opp.NextStep} />
                   </td>
                   <td style={{ ...TD, ...COL.flags }}>
-                    <FlagBadge flag={opp.sqlBucket === 'No Demo' ? 'No demo activity' : 'No next meeting'} />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      <FlagBadge flag={opp.sqlBucket === 'No Demo' ? 'No demo activity' : 'No next meeting'} />
+                      {opp.flags.map(f => <FlagBadge key={f} flag={f} />)}
+                    </div>
                   </td>
                 </tr>
               ))}

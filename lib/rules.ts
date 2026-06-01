@@ -7,6 +7,17 @@ export interface RuleDefinition {
   check: (opp: Opportunity) => boolean
 }
 
+function startOfCurrentMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
+const PAST_MONTH_RULE: RuleDefinition = {
+  label: 'Close date is current or future',
+  description: 'Close date must not fall in a past calendar month',
+  check: (opp) => !!opp.CloseDate && opp.CloseDate < startOfCurrentMonth(),
+}
+
 export const SQO_RULES: RuleDefinition[] = [
   {
     label: 'Economic Buyer confirmed',
@@ -23,6 +34,7 @@ export const SQO_RULES: RuleDefinition[] = [
     description: 'Net ARR NZD must be populated',
     check: (opp) => !opp.Net_ARR_NZD__c,
   },
+  PAST_MONTH_RULE,
 ]
 
 export const SAO_RULES: RuleDefinition[] = [
@@ -47,6 +59,7 @@ export const SAO_RULES: RuleDefinition[] = [
     description: 'Nurturing reason field must be populated',
     check: (opp) => !opp.Nurturing_Reason__c,
   },
+  PAST_MONTH_RULE,
 ]
 
 export const SQL_RULES: RuleDefinition[] = [
@@ -55,6 +68,7 @@ export const SQL_RULES: RuleDefinition[] = [
     description: 'Must have a future Next Meeting Date',
     check: (opp) => opp.sqlBucket !== 'Demo Scheduled',
   },
+  PAST_MONTH_RULE,
 ]
 
 export const WON_RULES: RuleDefinition[] = [

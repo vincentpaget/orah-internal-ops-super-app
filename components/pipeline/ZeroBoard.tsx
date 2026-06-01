@@ -44,12 +44,12 @@ const TD: React.CSSProperties = {
 }
 
 function SQLTable({ opps }: { opps: Opportunity[] }) {
-  const failing = opps.filter(o => o.sqlBucket !== 'Demo Scheduled')
+  const failing = opps.filter(o => o.sqlBucket !== 'Demo Scheduled' || o.flags.length > 0)
   if (failing.length === 0) return null
 
   return (
     <div style={{ overflowX: 'auto' }}>
-      <table style={{ width: '100%', minWidth: 1200, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
+      <table style={{ width: '100%', minWidth: 1350, borderCollapse: 'separate', borderSpacing: 0, tableLayout: 'fixed' }}>
         <thead>
           <tr>
             <th style={{ ...TH, ...COL.opportunity }}>Opportunity</th>
@@ -60,6 +60,7 @@ function SQLTable({ opps }: { opps: Opportunity[] }) {
             <th style={{ ...TH, ...COL.age }}>Age</th>
             <th style={{ ...TH, ...COL.date }}>Demo Held</th>
             <th style={{ ...TH, ...COL.date }}>Next Meeting</th>
+            <th style={{ ...TH, ...COL.flags }}>Flags</th>
           </tr>
         </thead>
         <tbody>
@@ -92,6 +93,14 @@ function SQLTable({ opps }: { opps: Opportunity[] }) {
                 {opp.Next_Meeting_Date__c
                   ? <DatePill date={opp.Next_Meeting_Date__c} />
                   : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+              </td>
+              <td style={{ ...TD, ...COL.flags }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {opp.sqlBucket !== 'Demo Scheduled' && (
+                    <FlagBadge flag={opp.sqlBucket === 'No Demo' ? 'No demo activity' : 'No next meeting'} />
+                  )}
+                  {opp.flags.map(f => <FlagBadge key={f} flag={f} />)}
+                </div>
               </td>
             </tr>
           ))}
