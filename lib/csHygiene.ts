@@ -2,6 +2,11 @@ import type { SFRenewalOpp, SFExpansionOpp } from './types'
 
 const WORKING_STAGES = new Set(['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 
+function startOfCurrentMonth(): string {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+}
+
 export const OPEN_RENEWAL_STAGES = new Set(['Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 export const OPEN_EXPANSION_STAGES = new Set(['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 
@@ -75,6 +80,13 @@ export const HYGIENE_RULES: HygieneRule[] = [
     description: 'Account has more than one open opportunity — possible duplicate pipeline entry.',
     appliesTo: 'both',
   },
+  {
+    id: 'close-date-past-month',
+    label: 'Close date in past month',
+    shortLabel: 'Close date in past month',
+    description: 'Opportunity is open but its close date falls in a previous calendar month.',
+    appliesTo: 'both',
+  },
 ]
 
 export const FLAG_SHORT_LABELS: Record<string, string> = Object.fromEntries(
@@ -108,6 +120,9 @@ export function getRenewalFlags(opp: SFRenewalOpp): string[] {
   if (OPEN_RENEWAL_STAGES.has(opp.StageName) && (opp['Account.Open_Opps__c'] ?? 0) > 1) {
     flags.push('potential-duplicate')
   }
+  if (OPEN_RENEWAL_STAGES.has(opp.StageName) && opp.CloseDate < startOfCurrentMonth()) {
+    flags.push('close-date-past-month')
+  }
 
   return flags
 }
@@ -126,6 +141,9 @@ export function getExpansionFlags(opp: SFExpansionOpp): string[] {
   }
   if (OPEN_EXPANSION_STAGES.has(opp.StageName) && (opp['Account.Open_Opps__c'] ?? 0) > 1) {
     flags.push('potential-duplicate')
+  }
+  if (OPEN_EXPANSION_STAGES.has(opp.StageName) && opp.CloseDate < startOfCurrentMonth()) {
+    flags.push('close-date-past-month')
   }
 
   return flags
