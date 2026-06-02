@@ -5,14 +5,20 @@ import { FS } from '@/lib/fontSizes'
 
 type State = 'idle' | 'loading' | 'sent' | 'error'
 
-export default function SendToSlackButton({ period }: { period: string }) {
+interface Props {
+  period?: string
+  endpoint?: string
+}
+
+export default function SendToSlackButton({ period, endpoint }: Props) {
   const [state, setState] = useState<State>('idle')
 
   async function send() {
     if (state === 'loading') return
     setState('loading')
     try {
-      const res = await fetch(`/api/slack/send-leaderboard?period=${period}`, { method: 'POST' })
+      const url = endpoint ?? `/api/slack/send-leaderboard?period=${period}`
+      const res = await fetch(url, { method: 'POST' })
       setState(res.ok ? 'sent' : 'error')
     } catch {
       setState('error')

@@ -77,6 +77,7 @@ function mapRenewalRecord(r: Record<string, unknown>): SFRenewalOpp {
     ...(r as unknown as SFRenewalOpp),
     'Owner.Id': (owner?.Id as string) ?? '',
     'Owner.Name': (owner?.Name as string) ?? '',
+    'Owner.Email': (owner?.Email as string) ?? null,
     'Account.Name': (account?.Name as string) ?? '',
     'Account.Open_Opps__c': (account?.Open_Opps__c as number) ?? null,
     'Pricebook2.Name': (pricebook2?.Name as string) ?? null,
@@ -91,6 +92,7 @@ function mapExpansionRecord(r: Record<string, unknown>): SFExpansionOpp {
     ...(r as unknown as SFExpansionOpp),
     'Owner.Id': (owner?.Id as string) ?? '',
     'Owner.Name': (owner?.Name as string) ?? '',
+    'Owner.Email': (owner?.Email as string) ?? null,
     'Account.Name': (account?.Name as string) ?? '',
     'Account.Open_Opps__c': (account?.Open_Opps__c as number) ?? null,
     'Pricebook2.Name': (pricebook2?.Name as string) ?? null,
@@ -103,7 +105,7 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
   const conn = await getConn()
   const soql = `
     SELECT
-      Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name,
+      Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name, Owner.Email,
       Pricebook2.Name,
       StageName, CloseDate, Type, NextStep, CreatedDate, CurrencyIsoCode,
       Renewal_Date_1__c,
@@ -146,7 +148,7 @@ export async function fetchExpansions(year: string): Promise<SFExpansionOpp[]> {
   const conn = await getConn()
   const soql = `
     SELECT
-      Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name,
+      Id, Name, AccountId, Account.Name, Account.Open_Opps__c, OwnerId, Owner.Id, Owner.Name, Owner.Email,
       Pricebook2.Name,
       StageName, CloseDate, Type, NextStep, CreatedDate,
       SaaSOptics_Contract_End_Date__c,

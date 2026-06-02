@@ -92,6 +92,109 @@ export function buildLeaderboardBlocks(
   ]
 }
 
+// ── CS Pipeline hygiene alert ────────────────────────────────────────────────
+
+interface CsRepRow {
+  repName: string
+  ownerEmail?: string | null
+  openOpps: number
+  flaggedOpps: number
+  healthPct: number
+}
+
+export function buildCsHygieneBlocks(rows: CsRepRow[], dashboardUrl: string, periodLabel: string, mentionByName: Map<string, string> = new Map()) {
+  const totalOpen    = rows.reduce((s, r) => s + r.openOpps, 0)
+  const totalFlagged = rows.reduce((s, r) => s + r.flaggedOpps, 0)
+  const teamScore    = totalOpen > 0
+    ? Math.round(((totalOpen - totalFlagged) / totalOpen) * 100)
+    : 100
+  const scoreEmoji = teamScore >= 80 ? '✅' : teamScore >= 60 ? '⚠️' : '🔴'
+
+  const medals = ['🥇', '🥈', '🥉']
+  const dateStr = new Date().toLocaleDateString('en-NZ', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  })
+
+  const repRows = rows.map((row, i) => {
+    const uid  = mentionByName.get(row.repName)
+    const name = uid ? `<@${uid}>` : `*${row.repName}*`
+    const score =
+      row.healthPct >= 80 ? `${row.healthPct}% ✅` :
+      row.healthPct >= 60 ? `${row.healthPct}% ⚠️` :
+                            `${row.healthPct}% 🔴`
+    const rank = i < 3 ? medals[i] : `${i + 1}.`
+    return {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `${rank}  ${name}` },
+        { type: 'mrkdwn', text: `*Score:* ${score}     *Open:* ${row.openOpps}     *Flagged:* ${row.flaggedOpps}` },
+      ],
+    }
+  })
+
+  return [
+    {
+      type: 'header',
+      text: { type: 'plain_text', text: '🔵 CS Pipeline Hygiene', emoji: true },
+    },
+    {
+      type: 'context',
+      elements: [{ type: 'mrkdwn', text: `${periodLabel}  ·  ${dateStr}` }],
+    },
+    { type: 'divider' },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: `*Team hygiene score*\n${teamScore}% ${scoreEmoji}` },
+        { type: 'mrkdwn', text: `*Opportunities flagged*\n${totalFlagged} of ${totalOpen} open` },
+      ],
+    },
+    { type: 'divider' },
+    {
+      type: 'section',
+      fields: [
+        { type: 'mrkdwn', text: '*Team member*' },
+        { type: 'mrkdwn', text: '*Hygiene details*' },
+      ],
+    },
+    ...repRows,
+    { type: 'divider' },
+    {
+      type: 'actions',
+      elements: [{
+        type: 'button',
+        text: { type: 'plain_text', text: 'View CS Pipeline →', emoji: true },
+        url: dashboardUrl,
+      }],
+    },
+  ]
+}
+
+export async function postCsHygiene(rows: CsRepRow[], periodLabel: string) {
+  const slack = getSlack()
+
+  const mentionByName = new Map<string, string>()
+  await Promise.all(
+    rows.map(async (row) => {
+      if (!row.ownerEmail) return
+      const uid = await slackUserIdForEmail(row.ownerEmail)
+      if (uid) mentionByName.set(row.repName, uid)
+    })
+  )
+
+  const base = (process.env.DASHBOARD_URL ?? 'http://localhost:3001').replace(/\/cs-pipeline\/?$/, '')
+  const dashboardUrl = `${base}/cs-pipeline?view=hygiene`
+  const blocks = buildCsHygieneBlocks(rows, dashboardUrl, periodLabel, mentionByName)
+
+  await slack.chat.postMessage({
+    channel: process.env.SLACK_CS_HYGIENE_CHANNEL_ID ?? 'C7ZR6AAJG',
+    text: '🔵 CS Pipeline Hygiene',
+    blocks,
+  })
+}
+
+// ── Pipeline Review leaderboard ───────────────────────────────────────────────
+
 export async function postLeaderboard(
   rows: RepRow[],
   emailByRepId: Map<string, string>,

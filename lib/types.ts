@@ -175,6 +175,7 @@ export interface SFRenewalOpp {
   OwnerId: string
   'Owner.Id': string
   'Owner.Name': string
+  'Owner.Email'?: string | null
   StageName: RenewalStage
   CloseDate: string
   Type: string | null
@@ -212,6 +213,7 @@ export interface SFExpansionOpp {
   OwnerId: string
   'Owner.Id': string
   'Owner.Name': string
+  'Owner.Email'?: string | null
   StageName: ExpansionStage
   CloseDate: string
   Type: string | null

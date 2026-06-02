@@ -10,6 +10,7 @@ import {
 import SalesforceLink from '@/components/ui/SalesforceLink'
 import DatePill from '@/components/ui/DatePill'
 import FlagsCell from './FlagsCell'
+import SendToSlackButton from '@/components/pipeline/SendToSlackButton'
 import { FS } from '@/lib/fontSizes'
 import { nzd } from '@/lib/formatters'
 
@@ -402,8 +403,9 @@ export default function CsZeroBoard({ renewalOpps, expansionOpps, activeRep }: P
 
         {/* Rep Leaderboard */}
         <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)' }}>
+          <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-subtle)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>Rep leaderboard</div>
+            <SendToSlackButton endpoint="/api/slack/send-cs-hygiene" />
           </div>
           {leaderboard.length === 0 ? (
             <div style={{ padding: '24px', textAlign: 'center', color: 'var(--fg-3)', ...FS.body }}>No open opportunities.</div>
