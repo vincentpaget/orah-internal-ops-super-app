@@ -117,6 +117,7 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
       Expansion_Notes__c,
       Renewal_Risk_Notes__c,
       Do_Not_Auto_Renew__c,
+      Notice_Period_Waived__c,
       Churn_Reason_External__c,
       Loss_Reason__c,
       Loss_Reason_Detail__c,

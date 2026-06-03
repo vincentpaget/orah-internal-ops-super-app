@@ -39,7 +39,8 @@ export default async function CsPipelinePage({ searchParams }: Props) {
   const isHygieneView = view === 'hygiene'
   const isRevOpsView = view === 'revops'
   const isClosingSoonView = view === 'closing-soon'
-  const isRenewalsView = !['expansions', 'all', 'hygiene', 'revops', 'closing-soon'].includes(view)
+  const isRenewalsDueSoonView = view === 'renewal-due-soon'
+  const isRenewalsView = !['expansions', 'all', 'hygiene', 'revops', 'closing-soon', 'renewal-due-soon'].includes(view)
   const isExpansionsView = view === 'expansions'
   const isAllView = ['all', 'hygiene', 'revops'].includes(view)
 
@@ -50,7 +51,7 @@ export default async function CsPipelinePage({ searchParams }: Props) {
   if (process.env.SF_USERNAME || process.env.SF_ACCESS_TOKEN) {
     try {
       const { fetchRenewals, fetchExpansions } = await import('@/lib/salesforce')
-      if (isRenewalsView || isAllView || isClosingSoonView) {
+      if (isRenewalsView || isAllView || isClosingSoonView || isRenewalsDueSoonView) {
         renewalOpps = await fetchRenewals(year)
       }
       if (isExpansionsView || isAllView) {
@@ -98,12 +99,20 @@ export default async function CsPipelinePage({ searchParams }: Props) {
 
   // Date range filter (applied before widget counts so widgets reflect current period)
   if (resolvedFrom) {
-    renewalOpps   = renewalOpps.filter(o => o.CloseDate >= resolvedFrom!)
-    expansionOpps = expansionOpps.filter(o => o.CloseDate >= resolvedFrom!)
+    if (isRenewalsDueSoonView) {
+      renewalOpps = renewalOpps.filter(o => (o.Renewal_Date_1__c ?? '') >= resolvedFrom!)
+    } else {
+      renewalOpps   = renewalOpps.filter(o => o.CloseDate >= resolvedFrom!)
+      expansionOpps = expansionOpps.filter(o => o.CloseDate >= resolvedFrom!)
+    }
   }
   if (resolvedTo) {
-    renewalOpps   = renewalOpps.filter(o => o.CloseDate <= resolvedTo!)
-    expansionOpps = expansionOpps.filter(o => o.CloseDate <= resolvedTo!)
+    if (isRenewalsDueSoonView) {
+      renewalOpps = renewalOpps.filter(o => (o.Renewal_Date_1__c ?? '') <= resolvedTo!)
+    } else {
+      renewalOpps   = renewalOpps.filter(o => o.CloseDate <= resolvedTo!)
+      expansionOpps = expansionOpps.filter(o => o.CloseDate <= resolvedTo!)
+    }
   }
 
   // Tile counts for Renewals Closing Soon — computed after owner+date, before type / tile filters
@@ -127,7 +136,7 @@ export default async function CsPipelinePage({ searchParams }: Props) {
 
   // Record type + type filters: non-hygiene views only
   if (!isHygieneView) {
-    if (isClosingSoonView || recordType === 'renewals') expansionOpps = []
+    if (isClosingSoonView || isRenewalsDueSoonView || recordType === 'renewals') expansionOpps = []
     else if (recordType === 'expansions') renewalOpps = []
 
     if (activeTypes.length > 0) {
@@ -137,10 +146,10 @@ export default async function CsPipelinePage({ searchParams }: Props) {
   }
 
   // Snapshot pre-tile opps for the rep breakdown (owner + date + type filters applied, tile not yet applied)
-  const closingSoonBaseOpps = isClosingSoonView ? [...renewalOpps] : []
+  const closingSoonBaseOpps = (isClosingSoonView || isRenewalsDueSoonView) ? [...renewalOpps] : []
 
-  // Closing Soon tile filter
-  if (isClosingSoonView) {
+  // Closing Soon / Renewals Due Soon tile filter
+  if (isClosingSoonView || isRenewalsDueSoonView) {
     if (tile === 'pending_auto') {
       renewalOpps = renewalOpps.filter(o => o.StageName === 'Pending' && o.Do_Not_Auto_Renew__c === false)
     } else if (tile === 'flagged_auto') {

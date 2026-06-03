@@ -27,6 +27,7 @@ export function getPeriodRange(period: string): { start: string; end: string; la
   const todayStr = today.toISOString().split('T')[0]
 
   switch (period) {
+    case 'past_due':       return { start: `${y}-01-01`, end: addDays(today, -1),    label: 'Past due' }
     case 'next_7_days':   return { start: `${y}-01-01`, end: addDays(today, 7),   label: 'Next 7 days' }
     case 'next_14_days':  return { start: `${y}-01-01`, end: addDays(today, 14),  label: 'Next 14 days' }
     case 'next_30_days':  return { start: `${y}-01-01`, end: addDays(today, 30),  label: 'Next 30 days' }

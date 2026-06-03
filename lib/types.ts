@@ -192,6 +192,7 @@ export interface SFRenewalOpp {
   Expansion_Notes__c: string | null
   Renewal_Risk_Notes__c: string | null
   Do_Not_Auto_Renew__c: boolean | null
+  Notice_Period_Waived__c: boolean | null
   Churn_Reason_External__c: string | null
   Loss_Reason__c: string | null
   Loss_Reason_Detail__c: string | null

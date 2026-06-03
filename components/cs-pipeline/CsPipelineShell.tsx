@@ -8,6 +8,7 @@ import RenewalsTable from './RenewalsTable'
 import ExpansionsTable from './ExpansionsTable'
 import AllDealsTable from './AllDealsTable'
 import ClosingSoonRenewalsTable from './ClosingSoonRenewalsTable'
+import RenewalsDueSoonTable from './RenewalsDueSoonTable'
 import RepBreakdownWidget from './RepBreakdownWidget'
 import CsZeroBoard from './CsZeroBoard'
 import CsFilters from './CsFilters'
@@ -215,7 +216,7 @@ export default function CsPipelineShell({
     if (activeOwner) p.set('owner', activeOwner)
     if (targetView === 'renewals') p.set('recordType', 'renewals')
     else if (targetView === 'expansions') p.set('recordType', 'expansions')
-    else if (targetView !== 'hygiene' && targetView !== 'revops' && targetView !== 'closing-soon' && activeRecordType) p.set('recordType', activeRecordType)
+    else if (targetView !== 'hygiene' && targetView !== 'revops' && targetView !== 'closing-soon' && targetView !== 'renewal-due-soon' && activeRecordType) p.set('recordType', activeRecordType)
     if (targetView !== 'hygiene' && activeTypes.length > 0) p.set('types', activeTypes.join(','))
     if (activeDatePreset) {
       p.set('datePreset', activeDatePreset)
@@ -240,7 +241,7 @@ export default function CsPipelineShell({
 
   function handleTileClick(tileId: string) {
     const p = new URLSearchParams()
-    p.set('view', 'closing-soon')
+    p.set('view', activeView)
     if (activeOwner) p.set('owner', activeOwner)
     if (activeDatePreset) {
       p.set('datePreset', activeDatePreset)
@@ -271,7 +272,8 @@ export default function CsPipelineShell({
   const isHygiene = activeView === 'hygiene'
   const isRevOps = activeView === 'revops'
   const isClosingSoon = activeView === 'closing-soon'
-  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps && !isClosingSoon
+  const isRenewalsDueSoon = activeView === 'renewal-due-soon'
+  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps && !isClosingSoon && !isRenewalsDueSoon
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const minClosedDate = activeDatePreset?.startsWith('next_') ? todayStr : null
@@ -290,7 +292,7 @@ export default function CsPipelineShell({
 
   const count = isRevOps
     ? renewalOpps.length + expansionOpps.length
-    : isClosingSoon
+    : (isClosingSoon || isRenewalsDueSoon)
       ? renewalOpps.length
       : isAll
         ? filteredRenewals.length + filteredExpansions.length
@@ -298,12 +300,12 @@ export default function CsPipelineShell({
 
   const owners = (isAll || isHygiene || isRevOps)
     ? [...new Set([...renewalOwners, ...expansionOwners])].sort()
-    : (isRenewals || isClosingSoon) ? renewalOwners : expansionOwners
+    : (isRenewals || isClosingSoon || isRenewalsDueSoon) ? renewalOwners : expansionOwners
 
   const availableTypes = sortByTypeOrder(
     (isAll || isRevOps)
       ? [...new Set([...renewalTypes, ...expansionTypes])]
-      : (isRenewals || isClosingSoon) ? renewalTypes : expansionTypes
+      : (isRenewals || isClosingSoon || isRenewalsDueSoon) ? renewalTypes : expansionTypes
   )
 
   return (
@@ -328,6 +330,7 @@ export default function CsPipelineShell({
             <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 8, background: 'var(--bg-subtle)', border: '1px solid var(--border)' }}>
               <ViewTab label="Pipeline Hygiene" active={isHygiene} onClick={() => switchView('hygiene')} />
               <ViewTab label="Renewals Closing Soon" active={isClosingSoon} onClick={() => switchView('closing-soon')} />
+              <ViewTab label="Renewals Due Soon" active={isRenewalsDueSoon} onClick={() => switchView('renewal-due-soon')} />
               <ViewTab label="RevOps" active={isRevOps} onClick={() => switchView('revops')} />
             </div>
           </div>
@@ -387,7 +390,8 @@ export default function CsPipelineShell({
         activeStage={activeStage}
         showRecordType={!isHygiene}
         showType={!isHygiene}
-        lockedRecordType={isRenewals || isClosingSoon ? 'renewals' : isExpansions ? 'expansions' : undefined}
+        lockedRecordType={isRenewals || isClosingSoon || isRenewalsDueSoon ? 'renewals' : isExpansions ? 'expansions' : undefined}
+        dateLabel={isRenewalsDueSoon ? 'Renewal date' : 'Close date'}
         showRevOpsFilters={isRevOps}
         availableStages={availableStages}
         activeStages={activeStages}
@@ -464,6 +468,72 @@ export default function CsPipelineShell({
               </span>
             </div>
             <ClosingSoonRenewalsTable opps={renewalOpps} activeTile={activeTile} />
+          </div>
+        </>
+      ) : isRenewalsDueSoon ? (
+        <>
+          <div style={{ display: 'flex', gap: 12, marginBottom: 20, maxWidth: 1040 }}>
+            <KpiWidget
+              id="total"
+              title="Total Renewals"
+              description="All open renewals in the current period"
+              count={tileCounts.total}
+              active={activeTile === null}
+              onClick={() => handleTileClick('total')}
+            />
+            <KpiWidget
+              id="pending_auto"
+              title="Pending Auto-Renewals"
+              description="Stage is Pending, Do Not Auto Renew is off"
+              count={tileCounts.pending_auto}
+              active={activeTile === 'pending_auto'}
+              onClick={() => handleTileClick('pending_auto')}
+            />
+            <KpiWidget
+              id="flagged_auto"
+              title="Flagged Auto-Renewals"
+              description="Pending auto-renewals with 1 or more hygiene flags"
+              count={tileCounts.flagged_auto}
+              active={activeTile === 'flagged_auto'}
+              onClick={() => handleTileClick('flagged_auto')}
+            />
+            <KpiWidget
+              id="do_not_auto"
+              title="Do Not Auto Renew"
+              description="Any open stage with Do Not Auto Renew enabled"
+              count={tileCounts.do_not_auto}
+              active={activeTile === 'do_not_auto'}
+              onClick={() => handleTileClick('do_not_auto')}
+            />
+            <KpiWidget
+              id="in_progress"
+              title="Renewals In Progress"
+              description="Active stage — not pending or closed"
+              count={tileCounts.in_progress}
+              active={activeTile === 'in_progress'}
+              onClick={() => handleTileClick('in_progress')}
+            />
+          </div>
+          <RepBreakdownWidget opps={closingSoonBaseOpps} />
+          <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>
+                {activeTile === 'pending_auto' ? 'Pending Auto-Renewals'
+                  : activeTile === 'flagged_auto' ? 'Flagged Auto-Renewals'
+                  : activeTile === 'do_not_auto' ? 'Do Not Auto Renew'
+                  : activeTile === 'in_progress' ? 'Renewals In Progress'
+                  : 'All Open Renewals'}
+              </span>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                padding: '1px 8px', borderRadius: 999,
+                background: 'var(--bg-subtle)', border: '1px solid var(--border)',
+                fontSize: 11, fontWeight: 600, color: 'var(--fg-2)',
+              }}>
+                {count} deal{count !== 1 ? 's' : ''}
+              </span>
+            </div>
+            <RenewalsDueSoonTable opps={renewalOpps} activeTile={activeTile} />
           </div>
         </>
       ) : isRevOps ? (

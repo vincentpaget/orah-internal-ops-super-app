@@ -26,9 +26,11 @@ interface Props {
   activeAutoRenewalDir?: string | null
   activeWidget?: string | null
   activeTile?: string | null
+  dateLabel?: string
 }
 
 const DATE_PRESETS = [
+  { value: 'past_due',      label: 'Past due' },
   { value: 'next_7_days',   label: 'Next 7 days' },
   { value: 'next_14_days',  label: 'Next 14 days' },
   { value: 'next_30_days',  label: 'Next 30 days' },
@@ -243,6 +245,7 @@ export default function CsFilters({
   activeAutoRenewalDir = null,
   activeWidget = null,
   activeTile = null,
+  dateLabel = 'Close date',
 }: Props) {
   const router = useRouter()
 
@@ -377,7 +380,7 @@ export default function CsFilters({
 
       {/* Close date preset */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-        <Label>Close date</Label>
+        <Label>{dateLabel}</Label>
         <select
           value={activeDatePreset ?? ''}
           onChange={e => handlePresetChange(e.target.value)}
