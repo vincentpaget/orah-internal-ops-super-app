@@ -47,8 +47,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return new NextResponse(`Token exchange failed: ${text.slice(0, 200)}`, { status: 502 });
   }
 
-  const tokenData = await tokenRes.json() as { access_token?: string; id?: string };
-  const { access_token, id: identityUrl } = tokenData;
+  const tokenData = await tokenRes.json() as {
+    access_token?: string;
+    id?: string;
+    instance_url?: string;
+    refresh_token?: string;
+  };
+  const { access_token, id: identityUrl, instance_url, refresh_token } = tokenData;
 
   if (!access_token || !identityUrl) {
     return new NextResponse('Token response missing access_token or identity URL.', { status: 502 });
@@ -75,5 +80,19 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   res.headers.append('Set-Cookie', cookie);
   res.headers.append('Set-Cookie', 'oauth_state=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/');
   res.headers.append('Set-Cookie', 'oauth_verifier=; Max-Age=0; HttpOnly; SameSite=Lax; Path=/');
+
+  if (access_token && instance_url) {
+    const sfSession = JSON.stringify({
+      accessToken: access_token,
+      instanceUrl: instance_url,
+      ...(refresh_token ? { refreshToken: refresh_token } : {}),
+    });
+    const isSecure = process.env.VERCEL_ENV === 'production';
+    res.headers.append(
+      'Set-Cookie',
+      `sf_session=${encodeURIComponent(sfSession)}; Max-Age=${60 * 60 * 8}; HttpOnly; SameSite=Lax; Path=/${isSecure ? '; Secure' : ''}`
+    );
+  }
+
   return res;
 }

@@ -5,7 +5,8 @@ const TOOL_ALLOW_ENV: Record<string, string> = {
   '/pipeline':       'PIPELINE_ALLOW',
   '/dedupe':         'DEDUPE_ALLOW',
   '/event-leads':    'EVENT_LEADS_ALLOW',
-  '/campaign-setup': 'CAMPAIGN_SETUP_ALLOW',
+  '/campaign-setup':    'CAMPAIGN_SETUP_ALLOW',
+  '/pricing-migration': 'PRICING_MIGRATION_ALLOW',
 }
 
 // Decode JWT payload without verifying the signature.
@@ -55,5 +56,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/pipeline/:path*', '/dedupe/:path*', '/event-leads/:path*', '/campaign-setup/:path*'],
+  matcher: ['/pipeline/:path*', '/dedupe/:path*', '/event-leads/:path*', '/campaign-setup/:path*', '/pricing-migration/:path*'],
 }

@@ -23,7 +23,7 @@ export function GET(): NextResponse {
     response_type: 'code',
     client_id: clientId,
     redirect_uri: redirectUri,
-    scope: 'id openid',
+    scope: 'api refresh_token id openid',
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',

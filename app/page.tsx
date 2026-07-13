@@ -40,6 +40,13 @@ const TOOLS = [
     color: 'var(--green-600)',
     bg: 'var(--green-50)',
   },
+  {
+    href: '/pricing-migration',
+    title: 'Pricing Migration',
+    description: 'Migrate open renewal opportunities onto the new Supervise and Boarding pricing model.',
+    color: 'var(--blue-500)',
+    bg: 'var(--blue-50)',
+  },
 ]
 
 const TOOL_ALLOW_ENV: Record<string, string> = {
@@ -47,7 +54,8 @@ const TOOL_ALLOW_ENV: Record<string, string> = {
   '/cs-pipeline':    'CS_PIPELINE_ALLOW',
   '/dedupe':         'DEDUPE_ALLOW',
   '/event-leads':    'EVENT_LEADS_ALLOW',
-  '/campaign-setup': 'CAMPAIGN_SETUP_ALLOW',
+  '/campaign-setup':    'CAMPAIGN_SETUP_ALLOW',
+  '/pricing-migration': 'PRICING_MIGRATION_ALLOW',
 }
 
 function isLocked(href: string, email: string): boolean {

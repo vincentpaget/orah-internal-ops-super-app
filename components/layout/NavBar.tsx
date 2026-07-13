@@ -73,6 +73,18 @@ function CsPipelineIcon({ active }: { active: boolean }) {
   )
 }
 
+function PricingMigrationIcon({ active }: { active: boolean }) {
+  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M3 14h14M3 10h14M3 6h14" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
+      <circle cx="6" cy="6" r="1.5" fill={c}/>
+      <circle cx="10" cy="10" r="1.5" fill={c}/>
+      <circle cx="15" cy="14" r="1.5" fill={c}/>
+    </svg>
+  )
+}
+
 function AdminIcon({ active }: { active: boolean }) {
   const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
   return (
@@ -105,6 +117,7 @@ const NAV_ITEMS = [
   { href: '/campaign-setup', label: 'Campaign Setup', Icon: CampaignIcon, match: (p: string) => p.startsWith('/campaign-setup') },
   { href: '/dedupe', label: 'CRM Dedupe', Icon: DedupeIcon, match: (p: string) => p.startsWith('/dedupe') },
   { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },
+  { href: '/pricing-migration', label: 'Pricing Migration', Icon: PricingMigrationIcon, match: (p: string) => p.startsWith('/pricing-migration') },
 ]
 
 const ADMIN_ITEMS = [
