@@ -29,6 +29,11 @@ export function isOverdue(isoDate: string | null | undefined): boolean {
   return new Date(isoDate + 'T00:00:00') < new Date()
 }
 
+export function percent(fraction: number | null | undefined, decimals = 0): string {
+  if (fraction == null) return '—'
+  return `${(fraction * 100).toFixed(decimals)}%`
+}
+
 export function stageLabel(stageName: string): string {
   return STAGE_DISPLAY[stageName as StageName] ?? stageName
 }

@@ -43,6 +43,8 @@ const CODE: React.CSSProperties = {
 import type React from 'react'
 
 export default async function AdminPage() {
+  const commissionsAdmins = getAllowList('COMMISSIONS_ADMIN_ALLOW')
+
   return (
     <div style={{ maxWidth: 720 }}>
       <div style={{ marginBottom: 32 }}>
@@ -83,6 +85,36 @@ export default async function AdminPage() {
               </div>
             )
           })}
+        </div>
+      </section>
+
+      {/* Commissions edit access */}
+      <section style={{ marginBottom: 40 }}>
+        <h2 style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-3)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 12 }}>
+          Commissions — Edit Access
+        </h2>
+        <p style={{ fontSize: 13, color: 'var(--fg-3)', marginBottom: 12 }}>
+          Everyone else gets read-only access to their own deals only.
+        </p>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '16px 20px', background: 'var(--bg)', gap: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--navy-900)', flexShrink: 0 }} />
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-1)' }}>Full read/write (all reps)</div>
+                <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 2 }}>COMMISSIONS_ADMIN_ALLOW</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'flex-end', flexShrink: 0, maxWidth: 380 }}>
+              {commissionsAdmins.length === 0 ? (
+                <span style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic', paddingTop: 2 }}>Nobody — everyone is read-only</span>
+              ) : commissionsAdmins.map(email => (
+                <span key={email} style={{ fontSize: 12, fontWeight: 500, color: 'var(--navy-900)', background: 'var(--blue-50)', border: '1px solid var(--navy-900)22', borderRadius: 20, padding: '3px 10px' }}>
+                  {email}
+                </span>
+              ))}
+            </div>
+          </div>
         </div>
       </section>
 

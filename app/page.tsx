@@ -47,6 +47,13 @@ const TOOLS = [
     color: 'var(--blue-500)',
     bg: 'var(--blue-50)',
   },
+  {
+    href: '/commissions',
+    title: 'Commissions',
+    description: 'Calculate rep commission on Closed Won deals against quarterly quota attainment.',
+    color: 'var(--orange-700)',
+    bg: 'var(--orange-50)',
+  },
 ]
 
 const TOOL_ALLOW_ENV: Record<string, string> = {

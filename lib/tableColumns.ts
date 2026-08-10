@@ -13,4 +13,7 @@ export const COL = {
   rank:        { width: 40 },
   count:       { width: 75 },
   healthScore: { width: 200 },
+  attainment:  { width: 140 },
+  commission:  { width: 130 },
+  rate:        { width: 100 },
 }
