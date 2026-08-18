@@ -27,7 +27,10 @@ const ROW2: CSSProperties = { display: 'grid', gridTemplateColumns: 'minmax(0,1f
 const CELL_LABEL: CSSProperties = { fontSize: 13, color: 'rgba(0,0,0,0.66)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const CELL_VAL: CSSProperties = { fontSize: 13, textAlign: 'right' }
 
-const WARN_COLOR: Record<WarningKey, string> = { step: '#D32F2F', act: '#F57C00', meet: '#D32F2F', age: '#D32F2F' }
+const WARN_COLOR: Record<WarningKey, string> = {
+  step: '#D32F2F', act: '#F57C00', meet: '#D32F2F', age: '#D32F2F',
+  eb: '#B35C00', ce: '#B35C00', reengage: '#D32F2F', actNear: '#F57C00', reengageFar: '#8A6100',
+}
 const STAGE_COLOR: Record<string, string> = { held: '#2E7D32', scheduled: '#F57C00', 'outcome-required': '#8255B1' }
 
 function Collapsible({ title, children, defaultOpen = true, headStyle, right }: { title: React.ReactNode; children: React.ReactNode; defaultOpen?: boolean; headStyle: CSSProperties; right?: React.ReactNode }) {

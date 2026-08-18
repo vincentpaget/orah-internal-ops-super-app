@@ -11,18 +11,22 @@ export async function GET() {
   }
 
   if (!process.env.SF_USERNAME && !process.env.SF_ACCESS_TOKEN) {
-    const { MOCK_SQL_HANDOFF_OPPORTUNITIES, MOCK_SQL_DASHBOARD_HISTORY } = await import('@/lib/sql-handoff/mockData')
-    return NextResponse.json({ success: true, opportunities: MOCK_SQL_HANDOFF_OPPORTUNITIES, history: MOCK_SQL_DASHBOARD_HISTORY })
+    const { MOCK_SQL_HANDOFF_OPPORTUNITIES, MOCK_SQL_DASHBOARD_HISTORY, MOCK_NURTURING_OPPORTUNITIES } = await import('@/lib/sql-handoff/mockData')
+    return NextResponse.json({
+      success: true, opportunities: MOCK_SQL_HANDOFF_OPPORTUNITIES, history: MOCK_SQL_DASHBOARD_HISTORY,
+      nurturing: MOCK_NURTURING_OPPORTUNITIES,
+    })
   }
 
   try {
-    const { fetchSqlHandoffOpportunities, fetchSqlDashboardHistory } = await import('@/lib/sql-handoff/salesforce')
+    const { fetchSqlHandoffOpportunities, fetchSqlDashboardHistory, fetchNurturingOpportunities } = await import('@/lib/sql-handoff/salesforce')
     const qStart = quarterStart().toISOString().slice(0, 10)
-    const [opportunities, history] = await Promise.all([
+    const [opportunities, history, nurturing] = await Promise.all([
       fetchSqlHandoffOpportunities(),
       fetchSqlDashboardHistory(qStart),
+      fetchNurturingOpportunities(),
     ])
-    return NextResponse.json({ success: true, opportunities, history })
+    return NextResponse.json({ success: true, opportunities, history, nurturing })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Unknown error' }, { status: 500 })
   }

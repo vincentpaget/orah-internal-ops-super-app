@@ -41,7 +41,7 @@ function fmtShort(dateStr: string): string {
   return d.getDate() + ' ' + MONTHS[d.getMonth()]
 }
 
-function meetingLabel(dateStr: string | null): string {
+export function meetingLabel(dateStr: string | null): string {
   if (!dateStr) return '—'
   const days = daysUntil(dateStr)
   const base = fmtShort(dateStr)
@@ -144,12 +144,110 @@ export const WARNINGS: { key: WarningKey; label: string; test: (c: EnrichedOppor
   { key: 'step', label: 'No next steps', test: c => !c.NextStep, detail: () => 'Next Step field is empty' },
   {
     key: 'act', label: 'No activity for 14 days',
-    test: c => c.touchedDays == null || c.touchedDays > 14,
+    test: c => c.StageName !== 'Nurturing' && (c.touchedDays == null || c.touchedDays > 14),
     detail: c => (c.touchedDays == null ? 'Never touched' : `Last touched ${c.touchedDays}d ago`),
   },
-  { key: 'meet', label: 'No next meeting', test: c => !c.Next_Meeting_Date__c, detail: () => 'No future meeting scheduled' },
-  { key: 'age', label: 'Aging over 30 days', test: c => c.age > 30, detail: c => `${c.age} days since created` },
+  { key: 'meet', label: 'No next meeting', test: c => c.StageName !== 'Nurturing' && !c.Next_Meeting_Date__c, detail: () => 'No future meeting scheduled' },
+  { key: 'age', label: 'Aging over 30 days', test: c => c.StageName !== 'Nurturing' && c.age > 30, detail: c => `${c.age} days since created` },
+  {
+    key: 'eb', label: 'Economic Buyer not confirmed',
+    test: c => c.StageName === 'Nurturing' && c.Economic_Buyer__c !== 'Yellow' && c.Economic_Buyer__c !== 'Green',
+    detail: c => (c.Economic_Buyer__c ? `Currently ${c.Economic_Buyer__c}` : 'Not yet graded'),
+  },
+  {
+    key: 'ce', label: 'Compelling Event not confirmed',
+    test: c => c.StageName === 'Nurturing' && c.Compelling_Event__c !== 'Yellow' && c.Compelling_Event__c !== 'Green',
+    detail: c => (c.Compelling_Event__c ? `Currently ${c.Compelling_Event__c}` : 'Not yet graded'),
+  },
+  {
+    key: 'reengage', label: 'No re-engagement date set',
+    test: c => c.StageName === 'Nurturing' && !c.Re_engagement_Date__c,
+    detail: () => 'Re-engagement Date field is empty',
+  },
+  {
+    key: 'actNear', label: 'No activity within 14 days of re-engagement date',
+    test: c => c.StageName === 'Nurturing' && !!c.Re_engagement_Date__c
+      && Math.abs(daysUntil(c.Re_engagement_Date__c)) <= 14
+      && (c.touchedDays == null || c.touchedDays > 14),
+    detail: c => (c.touchedDays == null ? 'Never touched' : `Last touched ${c.touchedDays}d ago`),
+  },
+  {
+    key: 'reengageFar', label: 'Re-engagement date more than 180 days away',
+    test: c => c.StageName === 'Nurturing' && !!c.Re_engagement_Date__c && daysUntil(c.Re_engagement_Date__c) > 180,
+    detail: c => `${daysUntil(c.Re_engagement_Date__c ?? '')} days from now`,
+  },
 ]
+
+// Which warnings apply to each view — the SQL Pipeline tab only ever shows Qualifying-stage
+// opportunities and the Nurturing tab only ever shows Nurturing-stage ones, but WARNINGS is a
+// single flat list, so each view must filter to its own subset rather than rendering all of them.
+export const PIPELINE_WARNING_KEYS: WarningKey[] = ['step', 'act', 'meet', 'age']
+export const NURTURE_WARNING_KEYS: WarningKey[] = ['eb', 'ce', 'reengage', 'step', 'actNear', 'reengageFar']
+
+// ── Nurturing backlog ────────────────────────────────────────────────────────
+
+export const NURTURE_REASON_TOOLTIP =
+  'Why is this opp on hold and what needs to happen before re-engagement? Name the specific blocker (budget cycle, staffing change, competitor contract, etc.) — not "checking in later" or "keeping warm."'
+
+export type NurtureBucketKey = 'overdue' | 'due30' | 'due60' | 'due90' | 'due90plus' | 'no-date'
+
+export const NURTURE_BUCKET_ORDER: { key: NurtureBucketKey; label: string; bg: string; fg: string }[] = [
+  { key: 'overdue', label: 'Overdue', bg: '#FDECEC', fg: '#D32F2F' },
+  { key: 'due30', label: 'Due ≤30 Days', bg: '#FFF3E0', fg: '#B35C00' },
+  { key: 'due60', label: '31–60 Days', bg: '#FFF8E1', fg: '#8A6100' },
+  { key: 'due90', label: '61–90 Days', bg: '#F5F5F5', fg: '#434343' },
+  { key: 'due90plus', label: '90+ Days', bg: '#FAFAFA', fg: '#9E9E9E' },
+  { key: 'no-date', label: 'No Date Set', bg: '#F5F5F5', fg: '#757575' },
+]
+
+export function nurtureBucket(c: EnrichedOpportunity): NurtureBucketKey {
+  const date = c.Re_engagement_Date__c
+  if (!date) return 'no-date'
+  const days = daysUntil(date)
+  if (days < 0) return 'overdue'
+  if (days <= 30) return 'due30'
+  if (days <= 60) return 'due60'
+  if (days <= 90) return 'due90'
+  return 'due90plus'
+}
+
+export type NurtureTabKey = 'all' | NurtureBucketKey
+
+export const NURTURE_TABS: { key: NurtureTabKey; label: string; hint: string; criteria: string }[] = [
+  {
+    key: 'all', label: 'All', hint: 'Every open Nurturing-stage opportunity, grouped by re-engagement date.',
+    criteria: 'No filter — every open Nurturing opportunity.',
+  },
+  {
+    key: 'overdue', label: 'Overdue', hint: "The re-engagement date has passed. Reach out now before this goes cold.",
+    criteria: 'Re-engagement Date is set and is in the past.',
+  },
+  {
+    key: 'due30', label: 'Due ≤30 Days', hint: 'Coming up soon — start planning the re-engagement conversation.',
+    criteria: 'Re-engagement Date is today or within the next 30 days.',
+  },
+  {
+    key: 'due60', label: '31–60 Days', hint: 'On the horizon but not urgent yet.',
+    criteria: 'Re-engagement Date is 31–60 days from today.',
+  },
+  {
+    key: 'due90', label: '61–90 Days', hint: 'Further out — keep an eye on activity in the meantime.',
+    criteria: 'Re-engagement Date is 61–90 days from today.',
+  },
+  {
+    key: 'due90plus', label: '90+ Days', hint: 'Long-range — low priority for now.',
+    criteria: 'Re-engagement Date is more than 90 days from today.',
+  },
+  {
+    key: 'no-date', label: 'No Date Set', hint: 'Missing a re-engagement date — set one so this doesn’t fall through the cracks.',
+    criteria: 'Re-engagement Date is blank.',
+  },
+]
+
+export function matchNurtureTab(c: EnrichedOpportunity, key: NurtureTabKey): boolean {
+  if (key === 'all') return true
+  return nurtureBucket(c) === key
+}
 
 // ── MEDDICC ──────────────────────────────────────────────────────────────────
 
@@ -244,8 +342,8 @@ export function buildModalForm(target: SFSqlHandoffOpportunity): ModalFormState 
     nextStep: target.NextStep || '',
     outcome: target.Initial_Meeting_Outcome__c || '',
     fup: target.Initial_Meeting_FUp_Email_Status__c || FUP_OPTIONS[0],
-    reengage: '',
-    nurtureReason: '',
+    reengage: target.Re_engagement_Date__c || '',
+    nurtureReason: target.Nurturing_Reason__c || '',
     lossReasonLabel: LOSS_REASONS[0].label,
     lossDetail: '',
     managerReviewNotes: target.Manager_Review_Notes__c || '',
@@ -350,16 +448,24 @@ export function buildModalFields(kind: ModalKind, target: EnrichedOpportunity, f
   const stage = stageForKind(kind)
 
   if (kind === 'edit') {
+    const isNurturing = target.StageName === 'Nurturing'
     return [
-      { key: 'stage', label: 'Stage', kind: 'ro', value: 'Qualifying', span: 1 },
+      { key: 'stage', label: 'Stage', kind: 'ro', value: target.StageName, span: 1 },
       { key: 'amount', label: 'Amount (Net ARR)', kind: 'number', value: form.amount, placeholder: 'e.g. 12000', span: 1 },
       { key: 'closeDate', label: 'Close Date', kind: 'date', value: form.closeDate, span: 1 },
-      { key: 'outcome', label: 'Initial Meeting Outcome', kind: 'select', value: form.outcome, options: OUTCOME_SELECT_OPTIONS.map(o => o.value), span: 1 },
-      { key: 'fup', label: 'Initial Meeting FUp Status', kind: 'select', value: form.fup, options: [...FUP_OPTIONS], span: 1 },
+      ...(isNurturing ? [] : [
+        { key: 'outcome' as const, label: 'Initial Meeting Outcome', kind: 'select' as const, value: form.outcome, options: OUTCOME_SELECT_OPTIONS.map(o => o.value), span: 1 },
+        { key: 'fup' as const, label: 'Initial Meeting FUp Status', kind: 'select' as const, value: form.fup, options: [...FUP_OPTIONS], span: 1 },
+      ]),
       { key: 'nextStep', label: 'Next Steps', kind: 'area', value: form.nextStep, placeholder: 'What happens next', span: 1 },
       { key: 'lastMeeting', label: 'Last Meeting Date', kind: 'ro', value: target.lastMeetingLabel, span: 1 },
       { key: 'nextMeeting', label: 'Next Meeting Date', kind: 'ro', value: target.nextLabel, span: 1 },
-      { key: 'discoveryNotes', label: 'Discovery Notes', kind: 'area', value: form.discoveryNotes, placeholder: 'What the prospect told us', span: 1 },
+      ...(isNurturing ? [
+        { key: 'reengage' as const, label: 'Re-engagement Date', kind: 'date' as const, value: form.reengage, span: 1 },
+        { key: 'nurtureReason' as const, label: 'Nurturing Reason', kind: 'area' as const, value: form.nurtureReason, placeholder: 'Reason given by the prospect to defer evaluation', span: 1 },
+      ] : [
+        { key: 'discoveryNotes' as const, label: 'Discovery Notes', kind: 'area' as const, value: form.discoveryNotes, placeholder: 'What the prospect told us', span: 1 },
+      ]),
     ]
   }
   if (kind === 'qualify') {
@@ -467,7 +573,7 @@ export function computeStageCounts(scoped: EnrichedOpportunity[]): { key: TabKey
 }
 
 export function computeWarningsSummary(scoped: EnrichedOpportunity[]): { key: WarningKey; label: string; count: number }[] {
-  return WARNINGS.map(w => ({ key: w.key, label: w.label, count: scoped.filter(c => w.test(c)).length }))
+  return WARNINGS.filter(w => PIPELINE_WARNING_KEYS.includes(w.key)).map(w => ({ key: w.key, label: w.label, count: scoped.filter(c => w.test(c)).length }))
 }
 
 // ── Dashboard period metrics ─────────────────────────────────────────────────
@@ -489,8 +595,17 @@ export interface DashboardMetrics {
   qtd: PeriodStats
 }
 
-function money(n: number): string {
+export function money(n: number): string {
   return n >= 1000 ? '$' + (n / 1000).toFixed(1) + 'k' : '$' + Math.round(n)
+}
+
+// Formats a native-currency Opportunity amount with its actual ISO currency symbol
+// (e.g. "US$12.3K", "A$850") rather than assuming everything is NZD — this org's
+// Opportunities span multiple currencies (see CurrencyIsoCode elsewhere in the app).
+export function moneyWithCurrency(n: number, currencyCode: string | null): string {
+  return new Intl.NumberFormat('en-NZ', {
+    style: 'currency', currency: currencyCode || 'NZD', notation: 'compact', maximumFractionDigits: 1,
+  }).format(n)
 }
 
 function median(ns: number[]): number {

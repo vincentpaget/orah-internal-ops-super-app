@@ -31,10 +31,17 @@ export default function ActionsMenu({ card, isHeld, onAction }: Props) {
     { label: 'Disqualify', bg: '#FDECEC', fg: '#D32F2F', kind: 'dq', enabled: true },
   ]
 
+  const MENU_HEIGHT = items.length * 33 + (items.length - 1) * 3 + 12
+
   function toggle() {
     if (open) { setOpen(false); return }
     const r = btnRef.current?.getBoundingClientRect()
-    if (r) setPos({ top: r.bottom + 4, left: Math.min(r.right - 212, window.innerWidth - 224) })
+    if (r) {
+      const left = Math.min(r.right - 212, window.innerWidth - 224)
+      const fitsBelow = r.bottom + 4 + MENU_HEIGHT <= window.innerHeight
+      const top = fitsBelow ? r.bottom + 4 : Math.max(8, r.top - 4 - MENU_HEIGHT)
+      setPos({ top, left })
+    }
     setOpen(true)
   }
 

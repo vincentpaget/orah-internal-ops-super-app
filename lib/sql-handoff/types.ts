@@ -35,7 +35,7 @@ export const LOSS_REASONS: { label: string; value: string }[] = [
 
 export type TabKey = 'all' | 'no-meeting' | 'scheduled' | 'outcome-required' | 'held'
 
-export type WarningKey = 'step' | 'act' | 'meet' | 'age'
+export type WarningKey = 'step' | 'act' | 'meet' | 'age' | 'eb' | 'ce' | 'reengage' | 'actNear' | 'reengageFar'
 
 export type ModalKind = 'edit' | 'qualify' | 'nurture' | 'dq'
 
@@ -62,8 +62,11 @@ export interface SFSqlHandoffOpportunity {
   AI_Next_Steps__c: string | null
   Manager_Review_Notes__c: string | null
   Amount: number | null
+  CurrencyIsoCode: string | null
   CloseDate: string | null
   Record_Type_Name__c: string | null
+  Re_engagement_Date__c: string | null
+  Nurturing_Reason__c: string | null
 
   Metrics__c: MeddiccGrade | null
   Metrics_Grade_Reason__c: string | null

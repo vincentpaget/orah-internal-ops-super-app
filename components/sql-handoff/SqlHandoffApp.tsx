@@ -6,10 +6,12 @@ import type {
   SFSqlHandoffOpportunity, SFSqlDashboardRecord, ModalState, ModalKind, TabKey, WarningKey, MeddiccKey,
 } from '@/lib/sql-handoff/types'
 import {
-  enrichOpportunity, matchTab, buildMatrix, computeStageCounts, computeWarningsSummary,
+  enrichOpportunity, matchTab, matchNurtureTab, buildMatrix, computeStageCounts, computeWarningsSummary,
   computeDashboardMetrics, buildModalForm, isModalBlocked, TAB_DEFAULT_SORT, MEDDICC_FIELDS,
 } from '@/lib/sql-handoff/logic'
+import type { NurtureTabKey } from '@/lib/sql-handoff/logic'
 import PipelineView from './PipelineView'
+import NurturingView from './NurturingView'
 import DashboardView from './DashboardView'
 import OpportunityModal from './OpportunityModal'
 import Toast from './Toast'
@@ -17,6 +19,7 @@ import Toast from './Toast'
 interface Props {
   opportunities: SFSqlHandoffOpportunity[]
   history: SFSqlDashboardRecord[]
+  nurturing: SFSqlHandoffOpportunity[]
 }
 
 function navStyle(active: boolean): CSSProperties {
@@ -55,11 +58,12 @@ function RefreshIcon({ spinning }: { spinning: boolean }) {
   )
 }
 
-export default function SqlHandoffApp({ opportunities, history: initialHistory }: Props) {
+export default function SqlHandoffApp({ opportunities, history: initialHistory, nurturing }: Props) {
   const [items, setItems] = useState(opportunities)
   const [history, setHistory] = useState(initialHistory)
+  const [nurtureItems, setNurtureItems] = useState(nurturing)
   const [syncing, setSyncing] = useState(false)
-  const [nav, setNav] = useState<'pipe' | 'dash'>('pipe')
+  const [nav, setNav] = useState<'pipe' | 'nurture' | 'dash'>('pipe')
   const [tab, setTab] = useState<TabKey>('held')
   const [query, setQuery] = useState('')
   const [ownerSel, setOwnerSel] = useState<string[]>([])
@@ -68,6 +72,15 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
   const [warnSel, setWarnSel] = useState<WarningKey[]>([])
   const [sortKey, setSortKey] = useState(TAB_DEFAULT_SORT.held.key)
   const [sortDir, setSortDir] = useState<1 | -1>(TAB_DEFAULT_SORT.held.dir)
+
+  const [nTab, setNTab] = useState<NurtureTabKey>('all')
+  const [nQuery, setNQuery] = useState('')
+  const [nOwnerSel, setNOwnerSel] = useState<string[]>([])
+  const [nRtypeSel, setNRtypeSel] = useState<string[]>([])
+  const [nCreatorSel, setNCreatorSel] = useState<string[]>([])
+  const [nWarnSel, setNWarnSel] = useState<WarningKey[]>([])
+  const [nSortKey, setNSortKey] = useState('Re_engagement_Date__c')
+  const [nSortDir, setNSortDir] = useState<1 | -1>(1)
   const [modal, setModal] = useState<ModalState | null>(null)
   const [showErrors, setShowErrors] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -102,6 +115,29 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
 
   const rowsForTab = useMemo(() => filtered.filter(c => matchTab(c, tab)), [filtered, tab])
 
+  const enrichedNurture = useMemo(() => nurtureItems.map(enrichOpportunity), [nurtureItems])
+
+  const nOwnerOptions = useMemo(() => Array.from(new Set(enrichedNurture.map(c => c['Owner.Name']))).sort(), [enrichedNurture])
+  const nRtypeOptions = useMemo(() => Array.from(new Set(enrichedNurture.map(c => c.Record_Type_Name__c).filter((v): v is string => !!v))).sort(), [enrichedNurture])
+  const nCreatorOptions = useMemo(() => Array.from(new Set(enrichedNurture.map(c => c['CreatedBy.Name']))).sort(), [enrichedNurture])
+
+  const nScoped = useMemo(() => enrichedNurture.filter(c =>
+    (nOwnerSel.length === 0 || nOwnerSel.includes(c['Owner.Name'])) &&
+    (nRtypeSel.length === 0 || (c.Record_Type_Name__c != null && nRtypeSel.includes(c.Record_Type_Name__c))) &&
+    (nCreatorSel.length === 0 || nCreatorSel.includes(c['CreatedBy.Name']))
+  ), [enrichedNurture, nOwnerSel, nRtypeSel, nCreatorSel])
+
+  const nFiltered = useMemo(() => {
+    const q = nQuery.toLowerCase()
+    return nScoped.filter(c => {
+      if (q && !c.Name.toLowerCase().includes(q) && !c['Owner.Name'].toLowerCase().includes(q)) return false
+      if (nWarnSel.length && !nWarnSel.some(k => c.warnKeys.includes(k))) return false
+      return true
+    })
+  }, [nScoped, nQuery, nWarnSel])
+
+  const nRowsForTab = useMemo(() => nFiltered.filter(c => matchNurtureTab(c, nTab)), [nFiltered, nTab])
+
   const dashboardMetrics = useMemo(() => computeDashboardMetrics(history, ownerSel), [history, ownerSel])
   const stageCounts = useMemo(() => computeStageCounts(scoped), [scoped])
   const warningsSummary = useMemo(() => computeWarningsSummary(scoped), [scoped])
@@ -127,6 +163,21 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
 
   function toggleSel(setter: (fn: (prev: string[]) => string[]) => void, value: string) {
     setter(prev => (prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]))
+  }
+
+  function handleNurtureSort(key: string) {
+    if (key === nSortKey) setNSortDir(d => (d === 1 ? -1 : 1))
+    else { setNSortKey(key); setNSortDir(1) }
+  }
+
+  function handleNurtureTabChange(key: NurtureTabKey) {
+    setNTab(key)
+    setNSortKey('Re_engagement_Date__c')
+    setNSortDir(1)
+  }
+
+  function toggleNurtureWarn(key: WarningKey) {
+    setNWarnSel(prev => (prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]))
   }
 
   function openModal(kind: ModalKind, card: (typeof enriched)[number]) {
@@ -169,15 +220,20 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
           opportunityId: target.Id, closeDate: form.closeDate || null,
           amount: form.amount === '' ? null : Number(form.amount), nextStep: form.nextStep || null, outcome: form.outcome || null,
           managerReviewNotes: form.managerReviewNotes || null, fup: form.fup || null,
-          discoveryNotes: form.discoveryNotes || null, meddicc: form.meddicc,
+          discoveryNotes: form.discoveryNotes || null, reengage: form.reengage || null, nurtureReason: form.nurtureReason || null,
+          meddicc: form.meddicc,
         })
-        setItems(prev => prev.map(i => (i.Id === target.Id ? applyMeddiccToOpp({
+        const patch = (i: SFSqlHandoffOpportunity) => applyMeddiccToOpp({
           ...i, CloseDate: form.closeDate || null, Amount: form.amount === '' ? null : Number(form.amount),
           NextStep: form.nextStep || null, Initial_Meeting_Outcome__c: (form.outcome || null) as typeof i.Initial_Meeting_Outcome__c,
           Manager_Review_Notes__c: form.managerReviewNotes || null,
           Initial_Meeting_FUp_Email_Status__c: (form.fup || null) as typeof i.Initial_Meeting_FUp_Email_Status__c,
           Discovery_Notes__c: form.discoveryNotes || null,
-        }, form.meddicc) : i)))
+          Re_engagement_Date__c: form.reengage || null,
+          Nurturing_Reason__c: form.nurtureReason || null,
+        }, form.meddicc)
+        setItems(prev => prev.map(i => (i.Id === target.Id ? patch(i) : i)))
+        setNurtureItems(prev => prev.map(i => (i.Id === target.Id ? patch(i) : i)))
         setToast(`${namePrefix} updated`)
       } else if (kind === 'qualify') {
         await postJson('/api/sql-handoff/move-to-evaluation', {
@@ -235,6 +291,34 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
     }
   }
 
+  async function inlineSaveNurture(
+    target: (typeof enrichedNurture)[number],
+    patch: { reengage: string; nurtureReason: string; nextStep: string; managerReviewNotes: string }
+  ): Promise<boolean> {
+    const namePrefix = target.Name.split(' - ')[0]
+    try {
+      await postJson('/api/sql-handoff/nurture-inline-edit', {
+        opportunityId: target.Id,
+        reengage: patch.reengage || null,
+        nurtureReason: patch.nurtureReason || null,
+        nextStep: patch.nextStep || null,
+        managerReviewNotes: patch.managerReviewNotes || null,
+      })
+      setNurtureItems(prev => prev.map(i => (i.Id === target.Id ? {
+        ...i,
+        Re_engagement_Date__c: patch.reengage || null,
+        Nurturing_Reason__c: patch.nurtureReason || null,
+        NextStep: patch.nextStep || null,
+        Manager_Review_Notes__c: patch.managerReviewNotes || null,
+      } : i)))
+      setToast(`${namePrefix} updated`)
+      return true
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to save')
+      return false
+    }
+  }
+
   async function handleResync() {
     setSyncing(true)
     try {
@@ -243,6 +327,7 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
       if (!res.ok || !data.success) throw new Error(data.error ?? 'Failed to resync')
       setItems(data.opportunities)
       setHistory(data.history)
+      setNurtureItems(data.nurturing)
       setToast(`Synced ${data.opportunities.length} open opportunities from Salesforce`)
     } catch (err) {
       setToast(err instanceof Error ? err.message : 'Failed to resync with Salesforce')
@@ -278,6 +363,7 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 24, borderBottom: '1px solid rgba(0,0,0,0.09)' }}>
           <button onClick={() => setNav('pipe')} style={navStyle(nav === 'pipe')}>SQL Pipeline</button>
+          <button onClick={() => setNav('nurture')} style={navStyle(nav === 'nurture')}>Nurturing Pipeline</button>
           <button onClick={() => setNav('dash')} style={navStyle(nav === 'dash')}>Dashboard</button>
         </div>
       </div>
@@ -293,6 +379,20 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
           tab={tab} onTabChange={handleTabChange}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
           onAction={openModal} onInlineSave={inlineSave}
+        />
+      )}
+
+      {nav === 'nurture' && (
+        <NurturingView
+          scoped={nScoped} filtered={nFiltered} rowsForTab={nRowsForTab}
+          query={nQuery} onQueryChange={setNQuery}
+          ownerSel={nOwnerSel} onToggleOwner={v => toggleSel(setNOwnerSel, v)} onClearOwner={() => setNOwnerSel([])} ownerOptions={nOwnerOptions}
+          rtypeSel={nRtypeSel} onToggleRtype={v => toggleSel(setNRtypeSel, v)} onClearRtype={() => setNRtypeSel([])} rtypeOptions={nRtypeOptions}
+          creatorSel={nCreatorSel} onToggleCreator={v => toggleSel(setNCreatorSel, v)} onClearCreator={() => setNCreatorSel([])} creatorOptions={nCreatorOptions}
+          warnSel={nWarnSel} onToggleWarn={toggleNurtureWarn} onClearWarn={() => setNWarnSel([])}
+          tab={nTab} onTabChange={handleNurtureTabChange}
+          sortKey={nSortKey} sortDir={nSortDir} onSort={handleNurtureSort}
+          onInlineSave={inlineSaveNurture} onAction={openModal}
         />
       )}
 

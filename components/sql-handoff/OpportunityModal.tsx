@@ -4,9 +4,10 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { EnrichedOpportunity, ModalFieldSpec, ModalFormState, ModalKind, MeddiccKey } from '@/lib/sql-handoff/types'
 import {
-  MEDDICC_FIELDS, gradeColors, isModalBlocked, buildModalFields, buildModalRequirements, meddiccKeysForKind,
+  MEDDICC_FIELDS, NURTURE_REASON_TOOLTIP, gradeColors, isModalBlocked, buildModalFields, buildModalRequirements, meddiccKeysForKind,
 } from '@/lib/sql-handoff/logic'
 import GradingGuideIcon from './GradingGuideIcon'
+import InfoTooltip from './InfoTooltip'
 
 interface Props {
   kind: ModalKind
@@ -79,6 +80,7 @@ function renderField(field: ModalFieldSpec, showErrors: boolean, onFieldChange: 
       <span style={LABEL}>
         <span>{field.label}</span>
         {field.required && <span style={{ color: '#D32F2F' }}>*</span>}
+        {field.key === 'nurtureReason' && <InfoTooltip text={NURTURE_REASON_TOOLTIP} />}
       </span>
       {control}
       {showError && <span style={ERROR}>{field.error}</span>}

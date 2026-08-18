@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { EnrichedOpportunity, ModalKind, TabKey, WarningKey } from '@/lib/sql-handoff/types'
-import { TABS, WARNINGS, PIPELINE_WARNING_KEYS, matchTab } from '@/lib/sql-handoff/logic'
-import PipelineTable from './PipelineTable'
+import type { EnrichedOpportunity, ModalKind, WarningKey } from '@/lib/sql-handoff/types'
+import { WARNINGS, NURTURE_TABS, NURTURE_WARNING_KEYS, matchNurtureTab } from '@/lib/sql-handoff/logic'
+import type { NurtureTabKey } from '@/lib/sql-handoff/logic'
+import NurturingTable from './NurturingTable'
 import MultiSelectFilter from './MultiSelectFilter'
 
 interface Props {
@@ -28,13 +29,13 @@ interface Props {
   warnSel: WarningKey[]
   onToggleWarn: (k: WarningKey) => void
   onClearWarn: () => void
-  tab: TabKey
-  onTabChange: (t: TabKey) => void
+  tab: NurtureTabKey
+  onTabChange: (t: NurtureTabKey) => void
   sortKey: string
   sortDir: 1 | -1
   onSort: (k: string) => void
+  onInlineSave: (card: EnrichedOpportunity, patch: { reengage: string; nurtureReason: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
-  onInlineSave: (card: EnrichedOpportunity, patch: { outcome: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
 }
 
 const INPUT: CSSProperties = {
@@ -42,17 +43,16 @@ const INPUT: CSSProperties = {
   color: '#262626', background: '#fff', border: '1px solid #E0E0E0', borderRadius: 6, outline: 'none',
 }
 
-export default function PipelineView({
+export default function NurturingView({
   scoped, filtered, rowsForTab, query, onQueryChange,
   ownerSel, onToggleOwner, onClearOwner, ownerOptions,
   rtypeSel, onToggleRtype, onClearRtype, rtypeOptions,
   creatorSel, onToggleCreator, onClearCreator, creatorOptions,
-  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave,
+  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onInlineSave, onAction,
 }: Props) {
   const [warnFilterOpen, setWarnFilterOpen] = useState(false)
-  const pipelineWarnings = WARNINGS.filter(w => PIPELINE_WARNING_KEYS.includes(w.key))
-
-  const activeTab = TABS.find(t => t.key === tab)!
+  const nurtureWarnings = WARNINGS.filter(w => NURTURE_WARNING_KEYS.includes(w.key))
+  const activeTab = NURTURE_TABS.find(t => t.key === tab)!
 
   return (
     <>
@@ -91,7 +91,7 @@ export default function PipelineView({
               padding: 6, display: 'flex', flexDirection: 'column', gap: 2,
               boxShadow: '0 8px 24px -4px rgba(0,0,0,0.12), 0 0 0 1px rgba(0,0,0,0.05)',
             }}>
-              {pipelineWarnings.map(w => {
+              {nurtureWarnings.map(w => {
                 const on = warnSel.includes(w.key)
                 const count = scoped.filter(c => c.warnKeys.includes(w.key)).length
                 return (
@@ -139,9 +139,9 @@ export default function PipelineView({
 
       <div style={{ padding: '16px 24px 24px' }}>
         <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap', position: 'relative', zIndex: 2 }}>
-          {TABS.map(t => {
+          {NURTURE_TABS.map(t => {
             const active = t.key === tab
-            const count = filtered.filter(c => matchTab(c, t.key)).length
+            const count = filtered.filter(c => matchNurtureTab(c, t.key)).length
             return (
               <button
                 key={t.key}
@@ -175,7 +175,7 @@ export default function PipelineView({
               {activeTab.hint}
             </p>
           </div>
-          <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} />
+          <NurturingTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onInlineSave={onInlineSave} onAction={onAction} />
         </div>
       </div>
     </>

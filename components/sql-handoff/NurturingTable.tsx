@@ -2,20 +2,20 @@
 
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import type { EnrichedOpportunity, ModalKind, TabKey } from '@/lib/sql-handoff/types'
-import { INITIAL_MEETING_OUTCOMES } from '@/lib/sql-handoff/types'
-import { outcomePill } from '@/lib/sql-handoff/logic'
+import type { EnrichedOpportunity, ModalKind } from '@/lib/sql-handoff/types'
+import { NURTURE_BUCKET_ORDER, NURTURE_REASON_TOOLTIP, nurtureBucket, meetingLabel, moneyWithCurrency } from '@/lib/sql-handoff/logic'
+import type { NurtureTabKey } from '@/lib/sql-handoff/logic'
 import WarningBadge from './WarningBadge'
-import ActionsMenu from './ActionsMenu'
 import ExpandableText from './ExpandableText'
+import InfoTooltip from './InfoTooltip'
+import { RecordLinkButtons } from './PipelineTable'
 import { PencilIcon, SpinnerIcon, CheckIcon, XIcon, ICON_BTN, EDIT_FIELD, EDIT_TEXTAREA } from './InlineEditKit'
 
-type ColumnKey =
-  | 'title' | 'links' | 'rtype' | 'createdBy' | 'owner' | 'age' | 'outcome' | 'next' | 'last'
-  | 'touched' | 'nextStep' | 'disco' | 'fup' | 'aiUpdate' | 'aiNext' | 'mgrNotes' | 'warnings' | 'edit' | 'actions'
+type ColumnKey = 'title' | 'links' | 'rtype' | 'owner' | 'amount' | 'createdBy' | 'reengage' | 'reason' | 'nextStep' | 'last' | 'next' | 'touched' | 'mgrNotes' | 'warnings' | 'edit'
 
 interface InlineDraft {
-  outcome: string
+  reengage: string
+  nurtureReason: string
   nextStep: string
   managerReviewNotes: string
 }
@@ -31,122 +31,61 @@ interface RowEditCtx {
 }
 
 interface Props {
-  tab: TabKey
+  tab: NurtureTabKey
   rows: EnrichedOpportunity[]
   sortKey: string
   sortDir: 1 | -1
   onSort: (key: string) => void
-  onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
   onInlineSave: (card: EnrichedOpportunity, patch: InlineDraft) => Promise<boolean>
+  onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
 }
 
 const CLIP: CSSProperties = { display: 'block', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
 const TEXT: CSSProperties = { fontSize: 13, color: 'rgba(0,0,0,0.87)', lineHeight: '18px', ...CLIP }
 const META: CSSProperties = { fontSize: 12, color: 'rgba(0,0,0,0.54)', lineHeight: '17px', ...CLIP }
 const CELL: CSSProperties = { minWidth: 0, overflow: 'hidden' }
-// The sticky title cell must NOT sit inside an overflow:hidden ancestor — per spec, overflow:hidden
-// creates its own scroll-mechanism context, which makes position:sticky stick relative to that small
-// 320px wrapper (which itself scrolls with the row) instead of the real horizontally-scrolling container.
 const TITLE_CELL: CSSProperties = {
   position: 'sticky', left: 0, zIndex: 2, background: '#fff', minWidth: 0, overflow: 'hidden',
   margin: '-9px 0', padding: '9px 12px 9px 16px', boxSizing: 'border-box',
   boxShadow: '1px 0 0 0 rgba(0,0,0,0.06)', alignSelf: 'stretch', display: 'flex', alignItems: 'center',
 }
 
-const LAYOUT: Record<TabKey, ColumnKey[]> = {
-  all: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  'outcome-required': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  held: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-}
+const KEYS: ColumnKey[] = ['title', 'links', 'rtype', 'createdBy', 'owner', 'amount', 'reengage', 'reason', 'nextStep', 'last', 'next', 'touched', 'mgrNotes', 'warnings', 'edit']
 
 const WIDTHS: Record<ColumnKey, string> = {
-  title: '320px', links: '64px', rtype: '112px', createdBy: '112px', owner: '112px', age: '58px',
-  outcome: '170px', next: '112px', last: '116px', touched: '116px', nextStep: '180px',
-  disco: '260px', fup: '220px', aiUpdate: '250px', aiNext: '250px', mgrNotes: '220px', warnings: '92px', edit: '56px', actions: '84px',
+  title: '280px', links: '64px', rtype: '110px', createdBy: '112px', owner: '112px', amount: '104px',
+  reengage: '160px', reason: '240px', nextStep: '200px', last: '116px', next: '116px', touched: '116px',
+  mgrNotes: '220px', warnings: '92px', edit: '56px',
 }
 
 const LABELS: Record<ColumnKey, string> = {
-  title: 'Opportunity', links: 'Links', rtype: 'Record Type', createdBy: 'Created By', owner: 'Owner', age: 'Age',
-  outcome: 'Meeting Outcome', next: 'Next Meeting', last: 'Last Meeting', touched: 'Last Touched',
-  nextStep: 'Next Steps', disco: 'Discovery Notes', fup: 'FUp Status', aiUpdate: 'AI Last Update',
-  aiNext: 'AI Next Steps', mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '', actions: 'Action',
+  title: 'Opportunity', links: 'Links', rtype: 'Record Type', owner: 'Owner', createdBy: 'Created By', amount: 'Amount (Net ARR)',
+  reengage: 'Re-engagement Date', reason: 'Nurturing Reason',
+  nextStep: 'Next Step', last: 'Last Meeting', next: 'Next Meeting', touched: 'Last Activity',
+  mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '',
 }
 
 const SORT_FIELD: Partial<Record<ColumnKey, string>> = {
-  title: 'Name', rtype: 'Record_Type_Name__c', createdBy: 'CreatedBy.Name', owner: 'Owner.Name',
-  age: 'age', outcome: 'Initial_Meeting_Outcome__c', next: 'Next_Meeting_Date__c', last: 'Last_Meeting_Date__c',
-  touched: 'touchedDays', nextStep: 'NextStep', disco: 'Discovery_Notes__c', fup: 'Initial_Meeting_FUp_Email_Status__c',
-  mgrNotes: 'Manager_Review_Notes__c',
-  aiUpdate: 'AI_Last_Update__c', aiNext: 'AI_Next_Steps__c', warnings: 'warnCount',
-}
-
-const HELD_ORDER: { outcome: string; label: string; bg: string; fg: string }[] = [
-  { outcome: 'Held - interested', label: 'Interested', bg: '#E8F5E9', fg: '#2E7D32' },
-  { outcome: 'Held - deferred', label: 'Deferred', bg: '#FFF8E1', fg: '#8A6100' },
-  { outcome: 'Held - not interested', label: 'Not Interested', bg: '#FDECEC', fg: '#D32F2F' },
-  { outcome: 'Held - disqualified', label: 'Disqualified', bg: '#FDECEC', fg: '#D32F2F' },
-  { outcome: 'Held - other', label: 'Other', bg: '#E3F2FE', fg: '#003F7F' },
-]
-
-function SalesforceIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <path d="M6.5 8.5a2.5 2.5 0 0 1 4.6-1.35A2 2 0 0 1 13.5 9a2 2 0 0 1-2 2H5a2.2 2.2 0 0 1-.5-4.34A2.6 2.6 0 0 1 6.5 8.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
-function GongIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3" />
-      <path d="M6.5 5.5v5l4-2.5-4-2.5Z" fill="currentColor" />
-    </svg>
-  )
-}
-
-export function RecordLinkButtons({ c }: { c: EnrichedOpportunity }): ReactNode {
-  return (
-    <span style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
-      <a
-        href={c.sfUrl} target="_blank" rel="noopener noreferrer" title="View in Salesforce"
-        style={{ ...ICON_BTN, border: '1px solid #9CC9F5', background: '#e6f1fd', color: '#003F7F' }}
-      >
-        <SalesforceIcon />
-      </a>
-      <a
-        href={`https://app.gong.io/go/account?crm-id=${c.Id}&crm-object-type=opportunity`} target="_blank" rel="noopener noreferrer" title="View in Gong"
-        style={{ ...ICON_BTN, border: '1px solid #C9B8E8', background: '#EDE7F4', color: '#8255B1' }}
-      >
-        <GongIcon />
-      </a>
-    </span>
-  )
+  title: 'Name', rtype: 'Record_Type_Name__c', owner: 'Owner.Name', createdBy: 'CreatedBy.Name', amount: 'Amount',
+  reengage: 'Re_engagement_Date__c',
+  nextStep: 'NextStep', last: 'Last_Meeting_Date__c', next: 'Next_Meeting_Date__c', touched: 'touchedDays',
+  mgrNotes: 'Manager_Review_Notes__c', warnings: 'warnCount',
 }
 
 function cText(t: string | null | undefined, style: CSSProperties = TEXT): ReactNode {
   return <span style={style}>{t || '—'}</span>
 }
 
-function cPill(t: string, bg: string, fg: string): ReactNode {
+function EyeIcon() {
   return (
-    <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: bg, color: fg, ...CLIP, display: 'inline-block' }}>
-      {t}
-    </span>
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
+      <path d="M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+      <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
   )
 }
 
-function cPillFull(t: string, bg: string, fg: string): ReactNode {
-  return (
-    <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: bg, color: fg, display: 'inline-block', whiteSpace: 'normal', lineHeight: '15px' }}>
-      {t}
-    </span>
-  )
-}
-
-function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onAction'], editCtx: RowEditCtx): ReactNode {
+function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx, onAction: Props['onAction']): ReactNode {
   const isEditingRow = editCtx.isEditing
   switch (key) {
     case 'title':
@@ -163,38 +102,46 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onA
     case 'rtype': {
       const rt = c.Record_Type_Name__c
       const short = rt === 'New Subscription' ? 'New Sub' : rt === 'Expansion (Mid-Term)' ? 'Expansion' : (rt ?? '—')
-      const bg = rt === 'New Subscription' ? '#E3F2FE' : rt === 'Renewal' ? '#E8F5E9' : '#F5F5F5'
-      const fg = rt === 'New Subscription' ? '#003F7F' : rt === 'Renewal' ? '#2E7D32' : '#434343'
-      return cPill(short, bg, fg)
+      return (
+        <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 8px', borderRadius: 100, background: '#F5F5F5', color: '#434343', ...CLIP, display: 'inline-block' }}>
+          {short}
+        </span>
+      )
     }
-    case 'createdBy':
-      return cText(c['CreatedBy.Name'])
     case 'owner':
       return cText(c['Owner.Name'])
-    case 'age': {
-      const color = c.age > 30 ? '#D32F2F' : c.age > 14 ? '#B35C00' : 'rgba(0,0,0,0.87)'
-      const weight = c.age > 14 ? 700 : 400
-      return <span style={{ fontSize: 13, fontWeight: weight, color }}>{c.age}d</span>
-    }
-    case 'outcome': {
+    case 'amount':
+      return c.Amount == null ? cText('—', META) : <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.87)' }}>{moneyWithCurrency(c.Amount, c.CurrencyIsoCode)}</span>
+    case 'createdBy':
+      return cText(c['CreatedBy.Name'])
+    case 'reengage': {
       if (isEditingRow) {
         return (
-          <select
-            value={editCtx.draft.outcome} onChange={e => editCtx.onDraftChange('outcome', e.target.value)}
+          <input
+            type="date" value={editCtx.draft.reengage} onChange={e => editCtx.onDraftChange('reengage', e.target.value)}
             disabled={editCtx.saving} style={{ ...EDIT_FIELD, opacity: editCtx.saving ? 0.6 : 1 }}
-          >
-            <option value="">—</option>
-            {INITIAL_MEETING_OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
-          </select>
+          />
         )
       }
-      const m = outcomePill(c.Initial_Meeting_Outcome__c)
-      return cPillFull(c.Initial_Meeting_Outcome__c ?? m.label, m.bg, m.fg)
+      if (!c.Re_engagement_Date__c) return cText('—', META)
+      const bucket = nurtureBucket(c)
+      const overdue = bucket === 'overdue'
+      return <span style={{ fontSize: 13, fontWeight: overdue ? 700 : 400, color: overdue ? '#D32F2F' : 'rgba(0,0,0,0.87)' }}>{meetingLabel(c.Re_engagement_Date__c)}</span>
     }
-    case 'next':
-      return cText(c.nextLabel, META)
+    case 'reason':
+      if (isEditingRow) {
+        return (
+          <textarea
+            value={editCtx.draft.nurtureReason} onChange={e => editCtx.onDraftChange('nurtureReason', e.target.value)}
+            disabled={editCtx.saving} style={{ ...EDIT_TEXTAREA, opacity: editCtx.saving ? 0.6 : 1 }} rows={3}
+          />
+        )
+      }
+      return <ExpandableText text={c.Nurturing_Reason__c} style={TEXT} />
     case 'last':
       return cText(c.lastMeetingLabel, META)
+    case 'next':
+      return cText(c.nextLabel, META)
     case 'touched': {
       const stale = c.touchedDays == null || c.touchedDays > 14
       return <span style={{ fontSize: 12, lineHeight: '17px', fontWeight: stale ? 600 : 400, color: stale ? '#B35C00' : 'rgba(0,0,0,0.54)' }}>{c.touchedLabel}</span>
@@ -209,12 +156,6 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onA
         )
       }
       return <ExpandableText text={c.NextStep} style={TEXT} />
-    case 'disco':
-      return <ExpandableText text={c.Discovery_Notes__c} style={TEXT} />
-    case 'aiUpdate':
-      return <ExpandableText text={c.AI_Last_Update__c} style={META} />
-    case 'aiNext':
-      return <ExpandableText text={c.AI_Next_Steps__c} style={META} />
     case 'mgrNotes':
       if (isEditingRow) {
         return (
@@ -225,11 +166,6 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onA
         )
       }
       return <ExpandableText text={c.Manager_Review_Notes__c} style={TEXT} />
-    case 'fup': {
-      if (!c.Initial_Meeting_FUp_Email_Status__c) return cText('—', META)
-      const sent = c.Initial_Meeting_FUp_Email_Status__c.startsWith('Sent')
-      return cPillFull(c.Initial_Meeting_FUp_Email_Status__c, sent ? '#E8F5E9' : '#FFF3E0', sent ? '#2E7D32' : '#B35C00')
-    }
     case 'warnings':
       return <WarningBadge card={c} />
     case 'edit':
@@ -258,15 +194,21 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onA
         )
       }
       return (
-        <button
-          onClick={() => editCtx.onStart()} title="Quick edit"
-          style={{ ...ICON_BTN, border: '1px solid #E0E0E0', background: '#fff', color: 'rgba(0,0,0,0.54)', cursor: 'pointer' }}
-        >
-          <PencilIcon />
-        </button>
+        <span style={{ display: 'flex', gap: 4 }}>
+          <button
+            onClick={() => editCtx.onStart()} title="Quick edit"
+            style={{ ...ICON_BTN, border: '1px solid #E0E0E0', background: '#fff', color: 'rgba(0,0,0,0.54)', cursor: 'pointer' }}
+          >
+            <PencilIcon />
+          </button>
+          <button
+            onClick={() => onAction('edit', c)} title="View/Edit"
+            style={{ ...ICON_BTN, border: '1px solid #9CC9F5', background: '#e6f1fd', color: '#003F7F', cursor: 'pointer' }}
+          >
+            <EyeIcon />
+          </button>
+        </span>
       )
-    case 'actions':
-      return <ActionsMenu card={c} isHeld={HELD_ORDER.some(g => g.outcome === c.Initial_Meeting_Outcome__c)} onAction={onAction} />
     default:
       return null
   }
@@ -277,8 +219,7 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   const recordB = b as unknown as Record<string, unknown>
   let x: unknown = record[key]
   let y: unknown = recordB[key]
-  if (key === 'Initial_Meeting_Outcome__c') { x = x || 'zz'; y = y || 'zz' }
-  if (key === 'Next_Meeting_Date__c' || key === 'Last_Meeting_Date__c') { x = x || '9999'; y = y || '9999' }
+  if (key === 'Re_engagement_Date__c') { x = x || '9999'; y = y || '9999' }
   if (typeof x === 'string') x = x.toLowerCase()
   if (typeof y === 'string') y = y.toLowerCase()
   if (x == null) x = ''
@@ -290,13 +231,13 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   return 0
 }
 
-export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onAction, onInlineSave }: Props) {
-  const keys = [...LAYOUT[tab], 'spacer' as const]
+export default function NurturingTable({ tab, rows, sortKey, sortDir, onSort, onInlineSave, onAction }: Props) {
+  const keys = [...KEYS, 'spacer' as const]
   const gridTemplateColumns = keys.map(k => (k === 'spacer' ? '1fr' : WIDTHS[k])).join(' ')
   const gridStyle: CSSProperties = { display: 'grid', width: 'max-content', minWidth: '100%', boxSizing: 'border-box', gridTemplateColumns, gap: 12, alignItems: 'start' }
 
   const sorted = rows.slice().sort((a, b) => compareBy(a, b, sortKey, sortDir))
-  const isHeldTab = tab === 'held'
+  const isAllTab = tab === 'all'
 
   // Keyed by opportunity Id so any number of rows can be in edit mode at once.
   const [drafts, setDrafts] = useState<Record<string, InlineDraft>>({})
@@ -306,13 +247,14 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
     const draft = drafts[c.Id]
     return {
       isEditing: draft !== undefined,
-      draft: draft ?? { outcome: '', nextStep: '', managerReviewNotes: '' },
+      draft: draft ?? { reengage: '', nurtureReason: '', nextStep: '', managerReviewNotes: '' },
       saving: !!savingIds[c.Id],
       onDraftChange: (field, value) => setDrafts(prev => ({ ...prev, [c.Id]: { ...prev[c.Id], [field]: value } })),
       onStart: () => setDrafts(prev => ({
         ...prev,
         [c.Id]: {
-          outcome: c.Initial_Meeting_Outcome__c ?? '',
+          reengage: c.Re_engagement_Date__c ?? '',
+          nurtureReason: c.Nurturing_Reason__c ?? '',
           nextStep: c.NextStep ?? '',
           managerReviewNotes: c.Manager_Review_Notes__c ?? '',
         },
@@ -350,9 +292,9 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
           if (k === 'spacer') return <span key="spacer" />
           const sortField = SORT_FIELD[k]
           const active = sortField === sortKey
-          return (
+          const button = (
             <button
-              key={k}
+              key={k === 'reason' ? undefined : k}
               onClick={() => sortField && onSort(sortField)}
               style={{
                 textAlign: 'left', border: 'none', fontFamily: "'Open Sans', sans-serif", fontSize: 11,
@@ -366,15 +308,24 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
               {LABELS[k]}{active ? (sortDir === 1 ? ' ↑' : ' ↓') : ''}
             </button>
           )
+          if (k === 'reason') {
+            return (
+              <span key={k} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                {button}
+                <InfoTooltip text={NURTURE_REASON_TOOLTIP} />
+              </span>
+            )
+          }
+          return button
         })}
       </div>
 
-      {isHeldTab ? (
-        HELD_ORDER.map(group => {
-          const items = sorted.filter(c => c.Initial_Meeting_Outcome__c === group.outcome)
+      {isAllTab ? (
+        NURTURE_BUCKET_ORDER.map(group => {
+          const items = sorted.filter(c => nurtureBucket(c) === group.key)
           if (!items.length) return null
           return (
-            <div key={group.outcome}>
+            <div key={group.key}>
               <div style={{ ...gridStyle, background: group.bg, padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                 <div style={{
                   gridColumn: '1 / -1', position: 'sticky', left: 0, display: 'flex', alignItems: 'center', gap: 8,
@@ -390,7 +341,7 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
                   <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === items.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
                     {keys.map(k => (
                       <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                        {k === 'spacer' ? null : renderCell(k, c, onAction, editCtx)}
+                        {k === 'spacer' ? null : renderCell(k, c, editCtx, onAction)}
                       </div>
                     ))}
                   </div>
@@ -406,7 +357,7 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
             <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === sorted.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
               {keys.map(k => (
                 <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                  {k === 'spacer' ? null : renderCell(k, c, onAction, editCtx)}
+                  {k === 'spacer' ? null : renderCell(k, c, editCtx, onAction)}
                 </div>
               ))}
             </div>
@@ -415,7 +366,7 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
       )}
 
       {sorted.length === 0 && (
-        <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>No opportunities</div>
+        <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>No nurturing opportunities</div>
       )}
     </div>
   )

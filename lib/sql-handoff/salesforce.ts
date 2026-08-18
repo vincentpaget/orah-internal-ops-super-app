@@ -63,18 +63,31 @@ const MEDDICC_FIELD_LIST = `
   Competition__c, Competition_Grade_Reason__c, Competition_Notes__c
 `
 
+const CORE_FIELD_LIST = `
+  Id, Name, OwnerId, Owner.Name, CreatedById, CreatedBy.Name,
+  StageName, SQL_Date__c, Initial_Meeting_Outcome__c, Initial_Meeting_FUp_Email_Status__c,
+  Next_Meeting_Date__c, Last_Meeting_Date__c, LastActivityDate,
+  NextStep, Discovery_Notes__c, AI_Last_Update__c, AI_Next_Steps__c, Manager_Review_Notes__c,
+  Amount, CurrencyIsoCode, CloseDate, Record_Type_Name__c, Re_engagement_Date__c, Nurturing_Reason__c
+`
+
 export async function fetchSqlHandoffOpportunities(): Promise<SFSqlHandoffOpportunity[]> {
   const soql = `
-    SELECT
-      Id, Name, OwnerId, Owner.Name, CreatedById, CreatedBy.Name,
-      StageName, SQL_Date__c, Initial_Meeting_Outcome__c, Initial_Meeting_FUp_Email_Status__c,
-      Next_Meeting_Date__c, Last_Meeting_Date__c, LastActivityDate,
-      NextStep, Discovery_Notes__c, AI_Last_Update__c, AI_Next_Steps__c, Manager_Review_Notes__c,
-      Amount, CloseDate, Record_Type_Name__c,
-      ${MEDDICC_FIELD_LIST}
+    SELECT ${CORE_FIELD_LIST}, ${MEDDICC_FIELD_LIST}
     FROM Opportunity
     WHERE StageName = 'Qualifying'
     ORDER BY SQL_Date__c DESC
+  `
+  const records = await runQuery(soql)
+  return records.map(mapOpportunity)
+}
+
+export async function fetchNurturingOpportunities(): Promise<SFSqlHandoffOpportunity[]> {
+  const soql = `
+    SELECT ${CORE_FIELD_LIST}, ${MEDDICC_FIELD_LIST}
+    FROM Opportunity
+    WHERE StageName = 'Nurturing'
+    ORDER BY Re_engagement_Date__c ASC NULLS LAST
   `
   const records = await runQuery(soql)
   return records.map(mapOpportunity)
