@@ -54,8 +54,8 @@ const TITLE_CELL: CSSProperties = {
 
 const LAYOUT: Record<TabKey, ColumnKey[]> = {
   all: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
+  'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
+  scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
   'outcome-required': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
   held: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
 }

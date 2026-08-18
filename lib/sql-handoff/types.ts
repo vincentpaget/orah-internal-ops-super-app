@@ -28,6 +28,8 @@ export const LOSS_REASONS: { label: string; value: string }[] = [
   { label: 'DQ - No Budget', value: 'DQ - No Budget' },
   { label: 'DQ - No Authority', value: 'DQ - No Authority' },
   { label: 'DQ - Unresponsive', value: 'DQ - Unresponsive' },
+  { label: 'DQ - Not Interested', value: 'DQ - Not Interested' },
+  { label: 'DQ - No Show', value: 'DQ - No Show' },
   { label: 'Other', value: 'Other' },
 ]
 
