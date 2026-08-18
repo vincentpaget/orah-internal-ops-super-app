@@ -33,6 +33,7 @@ interface Props {
   sortDir: 1 | -1
   onSort: (k: string) => void
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
+  onInlineSave: (card: EnrichedOpportunity, patch: { outcome: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
 }
 
 const INPUT: CSSProperties = {
@@ -111,7 +112,7 @@ export default function PipelineView({
   ownerSel, onToggleOwner, onClearOwner, ownerOptions,
   rtypeSel, onToggleRtype, onClearRtype, rtypeOptions,
   creatorSel, onToggleCreator, onClearCreator, creatorOptions,
-  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction,
+  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave,
 }: Props) {
   const [warnFilterOpen, setWarnFilterOpen] = useState(false)
 
@@ -238,7 +239,7 @@ export default function PipelineView({
               {activeTab.hint}
             </p>
           </div>
-          <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} />
+          <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} />
         </div>
       </div>
     </>

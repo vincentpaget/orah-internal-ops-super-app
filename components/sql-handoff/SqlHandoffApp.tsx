@@ -209,6 +209,32 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
     }
   }
 
+  async function inlineSave(
+    target: (typeof enriched)[number],
+    patch: { outcome: string; nextStep: string; managerReviewNotes: string }
+  ): Promise<boolean> {
+    const namePrefix = target.Name.split(' - ')[0]
+    try {
+      await postJson('/api/sql-handoff/inline-edit', {
+        opportunityId: target.Id,
+        outcome: patch.outcome || null,
+        nextStep: patch.nextStep || null,
+        managerReviewNotes: patch.managerReviewNotes || null,
+      })
+      setItems(prev => prev.map(i => (i.Id === target.Id ? {
+        ...i,
+        Initial_Meeting_Outcome__c: (patch.outcome || null) as typeof i.Initial_Meeting_Outcome__c,
+        NextStep: patch.nextStep || null,
+        Manager_Review_Notes__c: patch.managerReviewNotes || null,
+      } : i)))
+      setToast(`${namePrefix} updated`)
+      return true
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to save')
+      return false
+    }
+  }
+
   async function handleResync() {
     setSyncing(true)
     try {
@@ -266,7 +292,7 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory }
           warnSel={warnSel} onToggleWarn={toggleWarn} onClearWarn={() => setWarnSel([])}
           tab={tab} onTabChange={handleTabChange}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
-          onAction={openModal}
+          onAction={openModal} onInlineSave={inlineSave}
         />
       )}
 
