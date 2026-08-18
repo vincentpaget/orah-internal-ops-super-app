@@ -95,6 +95,17 @@ function CommissionsIcon({ active }: { active: boolean }) {
   )
 }
 
+function SqlHandoffIcon({ active }: { active: boolean }) {
+  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <rect x="2" y="4" width="4.5" height="12" rx="1.3" stroke={c} strokeWidth="1.6"/>
+      <rect x="7.75" y="4" width="4.5" height="8" rx="1.3" stroke={c} strokeWidth="1.6"/>
+      <rect x="13.5" y="4" width="4.5" height="5" rx="1.3" stroke={c} strokeWidth="1.6"/>
+    </svg>
+  )
+}
+
 function AdminIcon({ active }: { active: boolean }) {
   const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
   return (
@@ -129,6 +140,7 @@ const NAV_ITEMS = [
   { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },
   { href: '/pricing-migration', label: 'Pricing Migration', Icon: PricingMigrationIcon, match: (p: string) => p.startsWith('/pricing-migration') },
   { href: '/commissions', label: 'Commissions', Icon: CommissionsIcon, match: (p: string) => p.startsWith('/commissions') },
+  { href: '/sql-handoff', label: 'SQL Handoff', Icon: SqlHandoffIcon, match: (p: string) => p.startsWith('/sql-handoff') },
 ]
 
 const ADMIN_ITEMS = [

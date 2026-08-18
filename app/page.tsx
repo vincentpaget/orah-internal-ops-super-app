@@ -54,6 +54,13 @@ const TOOLS = [
     color: 'var(--orange-700)',
     bg: 'var(--orange-50)',
   },
+  {
+    href: '/sql-handoff',
+    title: 'SQL Handoff',
+    description: 'Track and disposition open Qualifying-stage opportunities, with a rep dashboard for SQL/SQO metrics and pipeline coverage.',
+    color: 'var(--purple-500)',
+    bg: 'var(--purple-50)',
+  },
 ]
 
 const TOOL_ALLOW_ENV: Record<string, string> = {
