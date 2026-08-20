@@ -237,6 +237,7 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                 <thead>
                   <tr>
                     <th style={{ ...TH, ...STICKY_1 }}>Opportunity</th>
+                    <th style={TH}>Owner</th>
                     <th style={TH}>Close Date</th>
                     <th style={{ ...TH, textAlign: 'right' }}>Amount (NZD)</th>
                     <th style={{ ...TH, textAlign: 'right' }}>Commission Amount</th>
@@ -266,6 +267,7 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                     return (
                       <tr key={deal.Id} style={{ background: rowBg }}>
                         <td style={{ ...TD, ...STICKY_1, background: rowBg }}><SalesforceLink label={deal.Name} opportunityId={deal.Id} /></td>
+                        <td style={{ ...TD, color: 'var(--fg-2)' }}>{deal.recordOwnerName || '—'}</td>
                         <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.CloseDate)}</td>
                         <td style={{ ...TD, textAlign: 'right', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
                           {nzd(toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c))}

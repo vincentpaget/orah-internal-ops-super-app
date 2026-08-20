@@ -613,6 +613,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
           <thead>
             <tr>
               <th style={{ ...TH, ...STICKY_1, textAlign: 'left' }}>Opportunity</th>
+              <th style={{ ...TH, textAlign: 'left' }}>Owner</th>
               {visibleKeys.map(key => (
                 <th key={key} style={{ ...TH, textAlign: COLUMN_DEFS[key].align, minWidth: COLUMN_DEFS[key].minWidth, ...calculatedColumnStyle(key, visibleKeys) }}>{COLUMN_DEFS[key].header}</th>
               ))}
@@ -642,6 +643,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
                   <td style={{ ...TD, ...STICKY_1, ...breakBorder, textAlign: 'left', background: stripeBg }}>
                     <SalesforceLink label={deal.Name} opportunityId={deal.Id} />
                   </td>
+                  <td style={{ ...TD, ...breakBorder, textAlign: 'left', color: 'var(--fg-2)' }}>{deal.recordOwnerName || '—'}</td>
                   {visibleKeys.map(key => (
                     <td
                       key={key}
@@ -689,6 +691,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
           <tfoot>
             <tr>
               <td style={{ ...TD, ...STICKY_1, borderBottom: 'none', fontWeight: 700, color: 'var(--fg-1)', background: 'var(--bg)' }}>Total</td>
+              <td style={{ ...TD, borderBottom: 'none' }} />
               {visibleKeys.map(key => (
                 <td key={key} style={{ ...TD, borderBottom: 'none', textAlign: COLUMN_DEFS[key].align, ...calculatedColumnStyle(key, visibleKeys) }}>
                   {FOOTER_VALUES[key] ?? null}

@@ -22,15 +22,35 @@ async function getConn(): Promise<Connection> {
   return _conn
 }
 
+/**
+ * The commission owner is the ARR Bookings split owner, not the raw Salesforce Owner or the
+ * Revenue split — a deal can be reassigned to a different rep for commission purposes after
+ * the fact while the record Owner (and Revenue split) stay put. Every Closed Won deal has
+ * exactly one ARR Bookings split at 100% today (Salesforce enforces splits summing to 100%,
+ * and none of them are partial in this org), so this picks the highest-percentage split and
+ * gives that rep the deal's full amount ("winner-take-most" — a future genuine partial split
+ * would not get proportional credit). The split's own dollar amount is ignored — only the
+ * percentage is used to resolve ownership; the deal amount stays Net_ARR_Override__c as
+ * always. Falls back to the raw Owner if a deal has no qualifying split row.
+ */
 function mapRecord(r: Record<string, unknown>): SFCommissionOpportunity {
   const owner = r.Owner as Record<string, unknown> | null
   const recordType = r.RecordType as Record<string, unknown> | null
+  const splits = (r.OpportunitySplits as { records?: Record<string, unknown>[] } | null)?.records ?? []
+  const topSplit = splits.length > 0
+    ? [...splits].sort((a, b) => (b.SplitPercentage as number) - (a.SplitPercentage as number))[0]
+    : null
+  const splitOwner = topSplit?.SplitOwner as Record<string, unknown> | null
   return {
     ...(r as unknown as SFCommissionOpportunity),
-    'Owner.Name': (owner?.Name as string) ?? '',
+    OwnerId: (topSplit?.SplitOwnerId as string) ?? (r.OwnerId as string),
+    'Owner.Name': (splitOwner?.Name as string) ?? (owner?.Name as string) ?? '',
+    recordOwnerName: (owner?.Name as string) ?? '',
     'RecordType.Name': (recordType?.Name as string) ?? null,
   }
 }
+
+const COMMISSION_SPLIT_FILTER = `Split_Type_Name__c = 'ARR Bookings' AND SplitPercentage > 0`
 
 const OPPORTUNITY_FIELDS = `
   Id, Name, OwnerId, Owner.Name, RecordTypeId, RecordType.Name,
@@ -38,7 +58,8 @@ const OPPORTUNITY_FIELDS = `
   Net_ARR_Override__c, Contract_Term_Length_Months__c,
   Contract_Start_Date__c, Total_Invoice_Amount_Paid__c, Maxio_Next_Invoice_Date__c,
   Commission_Payout_Threshold__c, Commission_Payout_Threshold_Met__c, Commission_Amount_NZD__c,
-  Commission_Paid__c, Commission_Paid_Amount_NZD__c, Commission_Paid_Date__c, Commission_Notes__c
+  Commission_Paid__c, Commission_Paid_Amount_NZD__c, Commission_Paid_Date__c, Commission_Notes__c,
+  (SELECT SplitOwnerId, SplitOwner.Name, SplitPercentage FROM OpportunitySplits WHERE ${COMMISSION_SPLIT_FILTER})
 `
 
 async function queryAllOpportunities(soql: string): Promise<SFCommissionOpportunity[]> {
@@ -69,11 +90,12 @@ export async function fetchCommissionOpportunities(start: string, end: string): 
 export async function fetchClosedWonOwners(): Promise<{ ownerId: string; ownerName: string }[]> {
   const conn = await getConn()
   const result = await conn.query<{ ownerId: string; ownerName: string }>(`
-    SELECT OwnerId ownerId, Owner.Name ownerName
-    FROM Opportunity
-    WHERE StageName = 'Closed Won'
-      AND Owner.IsActive = true
-    GROUP BY OwnerId, Owner.Name
+    SELECT SplitOwnerId ownerId, SplitOwner.Name ownerName
+    FROM OpportunitySplit
+    WHERE ${COMMISSION_SPLIT_FILTER}
+      AND Opportunity.StageName = 'Closed Won'
+      AND SplitOwner.IsActive = true
+    GROUP BY SplitOwnerId, SplitOwner.Name
   `)
   return result.records
     .map(r => ({ ownerId: r.ownerId, ownerName: r.ownerName }))
@@ -103,7 +125,7 @@ export async function fetchCommissionOpportunitiesForOwner(
     SELECT ${OPPORTUNITY_FIELDS}
     FROM Opportunity
     WHERE StageName = 'Closed Won'
-      AND OwnerId = '${ownerId}'
+      ${commissionOwnerFilterClause(ownerId)}
       ${dateFilter}
     ORDER BY CloseDate ASC
   `)
@@ -117,12 +139,12 @@ export async function fetchActiveSalesforceUsers(): Promise<{ id: string; name: 
   return result.records.map(r => ({ id: r.Id, name: r.Name }))
 }
 
-function ownerFilterClause(ownerId?: string): string {
+function commissionOwnerFilterClause(ownerId?: string): string {
   if (!ownerId) return ''
   if (!SF_ID_PATTERN.test(ownerId)) {
     throw new Error('Invalid owner id')
   }
-  return `AND OwnerId = '${ownerId}'`
+  return `AND Id IN (SELECT OpportunityId FROM OpportunitySplit WHERE ${COMMISSION_SPLIT_FILTER} AND SplitOwnerId = '${ownerId}')`
 }
 
 export async function fetchPayableOpportunities(ownerId?: string): Promise<SFCommissionOpportunity[]> {
@@ -132,7 +154,7 @@ export async function fetchPayableOpportunities(ownerId?: string): Promise<SFCom
     WHERE StageName = 'Closed Won'
       AND Commission_Payout_Threshold_Met__c = true
       AND Commission_Paid__c = false
-      ${ownerFilterClause(ownerId)}
+      ${commissionOwnerFilterClause(ownerId)}
     ORDER BY OwnerId, Commission_Paid_Date__c
   `)
 }
@@ -145,7 +167,7 @@ export async function fetchPendingOpportunities(ownerId?: string): Promise<SFCom
       AND Commission_Payout_Threshold_Met__c = false
       AND Commission_Paid__c = false
       AND (Commission_Payout_Threshold__c != null OR Commission_Amount_NZD__c != null)
-      ${ownerFilterClause(ownerId)}
+      ${commissionOwnerFilterClause(ownerId)}
     ORDER BY OwnerId, Maxio_Next_Invoice_Date__c
   `)
 }

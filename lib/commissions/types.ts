@@ -3,6 +3,9 @@ export interface SFCommissionOpportunity {
   Name: string
   OwnerId: string
   'Owner.Name': string
+  /** The actual Salesforce record Owner's name — kept separate from `'Owner.Name'` above,
+   *  which is the ARR Bookings split owner (the commission owner) and can differ from this. */
+  recordOwnerName: string
   RecordTypeId: string | null
   'RecordType.Name': string | null
   StageName: string

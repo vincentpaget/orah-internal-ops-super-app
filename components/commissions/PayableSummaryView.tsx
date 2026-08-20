@@ -275,6 +275,7 @@ export default function PayableSummaryView({ deals, edits, syncedEdits, onEditFi
                       <thead>
                         <tr>
                           <th style={{ ...TH, ...STICKY_1 }}>Opportunity</th>
+                          <th style={TH}>Owner</th>
                           <th style={TH}>Close Date</th>
                           <th style={{ ...TH, textAlign: 'right' }}>Amount (NZD)</th>
                           <th style={{ ...TH, textAlign: 'right' }}>Commission Amount</th>
@@ -303,6 +304,7 @@ export default function PayableSummaryView({ deals, edits, syncedEdits, onEditFi
                           return (
                             <tr key={deal.Id} style={{ background: rowBg }}>
                               <td style={{ ...TD, ...STICKY_1, background: rowBg }}><SalesforceLink label={deal.Name} opportunityId={deal.Id} /></td>
+                              <td style={{ ...TD, color: 'var(--fg-2)' }}>{deal.recordOwnerName || '—'}</td>
                               <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.CloseDate)}</td>
                               <td style={{ ...TD, textAlign: 'right', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
                                 {nzd(toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c))}
@@ -384,6 +386,7 @@ export default function PayableSummaryView({ deals, edits, syncedEdits, onEditFi
                       <tfoot>
                         <tr>
                           <td style={{ ...TD, ...STICKY_1, borderBottom: 'none', fontWeight: 700, color: 'var(--fg-1)', background: 'var(--bg)' }}>Total</td>
+                          <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none', textAlign: 'right', fontWeight: 700, color: 'var(--green-700)', fontVariantNumeric: 'tabular-nums' }}>
