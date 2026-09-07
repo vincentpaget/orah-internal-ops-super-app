@@ -4,34 +4,37 @@ import { verifyJWT } from '@/lib/session'
 
 type CampaignType = 'dm' | 'wb' | 'ev'
 
-function buildPayload(type: CampaignType, campaignName: string, summary: Record<string, string>) {
+// Built directly from the original form values (`fd`) submitted by the user — the AI only ever
+// supplies campaignName and fd.desc, so every other field here is guaranteed to be exactly what
+// was typed into the form, never a re-derived value that could drift from an LLM response.
+function buildPayload(type: CampaignType, campaignName: string, fd: Record<string, string>) {
   if (type === 'dm') return {
     'Campaign Name': campaignName,
-    'Campaign Description': summary['Campaign description'] || '',
-    'Start Date': summary['Start date'] || '',
-    'Follow-up Sequence ID': summary['Follow-up sequence ID'] || '',
-    'Sequence Start Delay (days)': summary['Sequence start delay (days)'] || '',
-    'Conversion Window (days)': summary['Conversion window (days)'] || '',
+    'Campaign Description': fd.desc || '',
+    'Start Date': fd.start || '',
+    'Follow-up Sequence ID': fd.seqid || '',
+    'Sequence Start Delay (days)': fd.delay || '',
+    'Conversion Window (days)': fd.conv || '',
   }
   if (type === 'wb') return {
     'Campaign Name': campaignName,
-    'Campaign Description': summary['Campaign description'] || '',
-    'Start Date': summary['Webinar date'] || '',
-    'Webinar Name': summary['Webinar name'] || '',
-    'Zoom Webinar ID': summary['Zoom webinar ID'] || '',
-    'Landing Page Path': summary['Landing page path'] || '',
-    'On demand URL': summary['On-demand URL'] || '',
-    'On demand email subject': summary['On-demand email subject'] || '',
+    'Campaign Description': fd.desc || '',
+    'Start Date': fd.date || '',
+    'Webinar Name': fd.name || '',
+    'Zoom Webinar ID': fd.zoomid || '',
+    'Landing Page Path': fd.lpath || '',
+    'On demand URL': fd.odurl || '',
+    'On demand email subject': fd.odsub || `Webinar Recording: ${fd.name || ''}`,
   }
   if (type === 'ev') return {
     'Campaign Name': campaignName,
-    'Campaign Description': summary['Campaign description'] || '',
-    'Start Date': summary['Event start date'] || '',
-    'End Date': summary['Event end date'] || '',
-    'Promotion Start Date': summary['Promotion start date'] || '',
-    'Pre-event Sequence IDs': summary['Pre-event sequence IDs'] || '',
-    'At-event Sequence IDs': summary['At-event sequence IDs'] || '',
-    'Post-event Sequence IDs': summary['Post-event sequence IDs'] || '',
+    'Campaign Description': fd.desc || '',
+    'Start Date': fd.start || '',
+    'End Date': fd.end || '',
+    'Promotion Start Date': fd.promo || '',
+    'Pre-event Sequence IDs': fd.pre || '',
+    'At-event Sequence IDs': fd.at || '',
+    'Post-event Sequence IDs': fd.post || '',
   }
   return {}
 }
@@ -42,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { type, campaignName, summary } = await req.json()
+  const { type, campaignName, fd } = await req.json()
 
   const WEBHOOKS: Record<CampaignType, string | undefined> = {
     dm: process.env.N8N_CAMPAIGN_WEBHOOK_DM,
@@ -56,7 +59,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const payload = buildPayload(type, campaignName, summary)
+    const payload = buildPayload(type, campaignName, fd)
     const response = await fetch(webhookUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
