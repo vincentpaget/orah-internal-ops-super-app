@@ -104,6 +104,10 @@ export const TABS: { key: TabKey; label: string; hint: string; criteria: string 
     key: 'held', label: 'Held · Action Required', hint: 'Demo held and dispositioned. Move each into Evaluation, Nurturing, or Closed - Disqualified.',
     criteria: 'Meeting Outcome is "Held - interested", "Held - not interested", "Held - deferred", "Held - disqualified", or "Held - other".',
   },
+  {
+    key: 'nurture', label: 'Nurturing', hint: 'In Nurturing, grouped by re-engagement date. Qualify into Evaluation once re-engaged, or Disqualify.',
+    criteria: 'Stage is Nurturing.',
+  },
 ]
 
 // Default sort applied whenever the user switches to a tab — "newest to oldest" means smallest
@@ -114,6 +118,12 @@ export const TAB_DEFAULT_SORT: Record<TabKey, { key: string; dir: 1 | -1 }> = {
   scheduled: { key: 'Next_Meeting_Date__c', dir: 1 },
   'outcome-required': { key: 'Last_Meeting_Date__c', dir: -1 },
   held: { key: 'Last_Meeting_Date__c', dir: -1 },
+  nurture: { key: 'Re_engagement_Date__c', dir: 1 },
+}
+
+/** Nurturing-stage opps only ever appear in the Nurture tab — every other tab is Qualifying-only. */
+export function isNurturingStage(c: EnrichedOpportunity): boolean {
+  return c.StageName === 'Nurturing'
 }
 
 export function matchTab(c: EnrichedOpportunity, key: TabKey): boolean {
@@ -122,6 +132,8 @@ export function matchTab(c: EnrichedOpportunity, key: TabKey): boolean {
   const isOutcomeRequired = UNDISPOSITIONED.has(outcome) && !!c.Last_Meeting_Date__c
   const isNotYetHeld = !isHeld && !isOutcomeRequired
   const hasNext = !!c.Next_Meeting_Date__c
+  if (key === 'nurture') return isNurturingStage(c)
+  if (isNurturingStage(c)) return false
   switch (key) {
     case 'all':
       return true
@@ -192,12 +204,12 @@ export const NURTURE_REASON_TOOLTIP =
 export type NurtureBucketKey = 'overdue' | 'due30' | 'due60' | 'due90' | 'due90plus' | 'no-date'
 
 export const NURTURE_BUCKET_ORDER: { key: NurtureBucketKey; label: string; bg: string; fg: string }[] = [
+  { key: 'no-date', label: 'No Date Set', bg: '#F5F5F5', fg: '#757575' },
   { key: 'overdue', label: 'Overdue', bg: '#FDECEC', fg: '#D32F2F' },
   { key: 'due30', label: 'Due ≤30 Days', bg: '#FFF3E0', fg: '#B35C00' },
   { key: 'due60', label: '31–60 Days', bg: '#FFF8E1', fg: '#8A6100' },
   { key: 'due90', label: '61–90 Days', bg: '#F5F5F5', fg: '#434343' },
   { key: 'due90plus', label: '90+ Days', bg: '#FAFAFA', fg: '#9E9E9E' },
-  { key: 'no-date', label: 'No Date Set', bg: '#F5F5F5', fg: '#757575' },
 ]
 
 export function nurtureBucket(c: EnrichedOpportunity): NurtureBucketKey {
@@ -211,43 +223,6 @@ export function nurtureBucket(c: EnrichedOpportunity): NurtureBucketKey {
   return 'due90plus'
 }
 
-export type NurtureTabKey = 'all' | NurtureBucketKey
-
-export const NURTURE_TABS: { key: NurtureTabKey; label: string; hint: string; criteria: string }[] = [
-  {
-    key: 'all', label: 'All', hint: 'Every open Nurturing-stage opportunity, grouped by re-engagement date.',
-    criteria: 'No filter — every open Nurturing opportunity.',
-  },
-  {
-    key: 'overdue', label: 'Overdue', hint: "The re-engagement date has passed. Reach out now before this goes cold.",
-    criteria: 'Re-engagement Date is set and is in the past.',
-  },
-  {
-    key: 'due30', label: 'Due ≤30 Days', hint: 'Coming up soon — start planning the re-engagement conversation.',
-    criteria: 'Re-engagement Date is today or within the next 30 days.',
-  },
-  {
-    key: 'due60', label: '31–60 Days', hint: 'On the horizon but not urgent yet.',
-    criteria: 'Re-engagement Date is 31–60 days from today.',
-  },
-  {
-    key: 'due90', label: '61–90 Days', hint: 'Further out — keep an eye on activity in the meantime.',
-    criteria: 'Re-engagement Date is 61–90 days from today.',
-  },
-  {
-    key: 'due90plus', label: '90+ Days', hint: 'Long-range — low priority for now.',
-    criteria: 'Re-engagement Date is more than 90 days from today.',
-  },
-  {
-    key: 'no-date', label: 'No Date Set', hint: 'Missing a re-engagement date — set one so this doesn’t fall through the cracks.',
-    criteria: 'Re-engagement Date is blank.',
-  },
-]
-
-export function matchNurtureTab(c: EnrichedOpportunity, key: NurtureTabKey): boolean {
-  if (key === 'all') return true
-  return nurtureBucket(c) === key
-}
 
 // ── MEDDICC ──────────────────────────────────────────────────────────────────
 
@@ -565,7 +540,7 @@ export function buildMatrix(scoped: EnrichedOpportunity[], field: 'Owner.Name' |
 }
 
 export function computeStageCounts(scoped: EnrichedOpportunity[]): { key: TabKey; label: string; count: number }[] {
-  return TABS.filter(t => t.key !== 'all').map(t => ({
+  return TABS.filter(t => t.key !== 'all' && t.key !== 'nurture').map(t => ({
     key: t.key,
     label: t.label.replace(' · ', ' '),
     count: scoped.filter(c => matchTab(c, t.key)).length,

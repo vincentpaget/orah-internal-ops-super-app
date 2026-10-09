@@ -6,6 +6,8 @@ import type { EnrichedOpportunity, ModalKind } from '@/lib/sql-handoff/types'
 interface Props {
   card: EnrichedOpportunity
   isHeld: boolean
+  /** False on the Nurture tab — an opp already in Nurturing can only be qualified or disqualified. */
+  allowNurture?: boolean
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
 }
 
@@ -19,17 +21,18 @@ interface MenuItem {
 
 const DISABLED_TITLE = 'Only available once the initial meeting is Held'
 
-export default function ActionsMenu({ card, isHeld, onAction }: Props) {
+export default function ActionsMenu({ card, isHeld, allowNurture = true, onAction }: Props) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const btnRef = useRef<HTMLButtonElement>(null)
 
-  const items: MenuItem[] = [
+  const allItems: MenuItem[] = [
     { label: 'View/Edit', bg: '#F5F5F5', fg: '#434343', kind: 'edit', enabled: true },
     { label: 'Qualified (SQO)', bg: '#E8F5E9', fg: '#2E7D32', kind: 'qualify', enabled: isHeld },
     { label: 'Nurture (SAO)', bg: '#FFF3E0', fg: '#B35C00', kind: 'nurture', enabled: isHeld },
     { label: 'Disqualify', bg: '#FDECEC', fg: '#D32F2F', kind: 'dq', enabled: true },
   ]
+  const items = allItems.filter(item => allowNurture || item.kind !== 'nurture')
 
   const MENU_HEIGHT = items.length * 33 + (items.length - 1) * 3 + 12
 

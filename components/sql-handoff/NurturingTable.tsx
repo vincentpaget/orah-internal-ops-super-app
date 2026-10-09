@@ -4,16 +4,18 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { EnrichedOpportunity, ModalKind } from '@/lib/sql-handoff/types'
 import { NURTURE_BUCKET_ORDER, NURTURE_REASON_TOOLTIP, nurtureBucket, meetingLabel, moneyWithCurrency } from '@/lib/sql-handoff/logic'
-import type { NurtureTabKey } from '@/lib/sql-handoff/logic'
 import WarningBadge from './WarningBadge'
 import ExpandableText from './ExpandableText'
 import InfoTooltip from './InfoTooltip'
+import { shortDate } from '@/lib/formatters'
 import { RecordLinkButtons } from './PipelineTable'
+import ActionsMenu from './ActionsMenu'
 import { PencilIcon, SpinnerIcon, CheckIcon, XIcon, ICON_BTN, EDIT_FIELD, EDIT_TEXTAREA } from './InlineEditKit'
 
-type ColumnKey = 'title' | 'links' | 'rtype' | 'owner' | 'amount' | 'createdBy' | 'reengage' | 'reason' | 'nextStep' | 'last' | 'next' | 'touched' | 'mgrNotes' | 'warnings' | 'edit'
+type ColumnKey = 'title' | 'links' | 'rtype' | 'owner' | 'amount' | 'createdBy' | 'reengage' | 'reason' | 'nextStep' | 'last' | 'next' | 'touched' | 'mgrNotes' | 'warnings' | 'edit' | 'actions' | 'sqoDate' | 'closeDate'
 
 interface InlineDraft {
+  closeDate: string
   reengage: string
   nurtureReason: string
   nextStep: string
@@ -31,7 +33,6 @@ interface RowEditCtx {
 }
 
 interface Props {
-  tab: NurtureTabKey
   rows: EnrichedOpportunity[]
   sortKey: string
   sortDir: 1 | -1
@@ -50,26 +51,26 @@ const TITLE_CELL: CSSProperties = {
   boxShadow: '1px 0 0 0 rgba(0,0,0,0.06)', alignSelf: 'stretch', display: 'flex', alignItems: 'center',
 }
 
-const KEYS: ColumnKey[] = ['title', 'links', 'rtype', 'createdBy', 'owner', 'amount', 'reengage', 'reason', 'nextStep', 'last', 'next', 'touched', 'mgrNotes', 'warnings', 'edit']
+const KEYS: ColumnKey[] = ['title', 'links', 'rtype', 'createdBy', 'owner', 'amount', 'sqoDate', 'closeDate', 'reengage', 'reason', 'nextStep', 'last', 'next', 'touched', 'mgrNotes', 'warnings', 'edit', 'actions']
 
 const WIDTHS: Record<ColumnKey, string> = {
   title: '280px', links: '64px', rtype: '110px', createdBy: '112px', owner: '112px', amount: '104px',
   reengage: '160px', reason: '240px', nextStep: '200px', last: '116px', next: '116px', touched: '116px',
-  mgrNotes: '220px', warnings: '92px', edit: '56px',
+  mgrNotes: '220px', warnings: '92px', edit: '56px', actions: '84px', sqoDate: '104px', closeDate: '140px',
 }
 
 const LABELS: Record<ColumnKey, string> = {
   title: 'Opportunity', links: 'Links', rtype: 'Record Type', owner: 'Owner', createdBy: 'Created By', amount: 'Amount (Net ARR)',
   reengage: 'Re-engagement Date', reason: 'Nurturing Reason',
   nextStep: 'Next Step', last: 'Last Meeting', next: 'Next Meeting', touched: 'Last Activity',
-  mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '',
+  mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '', actions: 'Action', sqoDate: 'SQO Date', closeDate: 'Close Date',
 }
 
 const SORT_FIELD: Partial<Record<ColumnKey, string>> = {
   title: 'Name', rtype: 'Record_Type_Name__c', owner: 'Owner.Name', createdBy: 'CreatedBy.Name', amount: 'Amount',
   reengage: 'Re_engagement_Date__c',
   nextStep: 'NextStep', last: 'Last_Meeting_Date__c', next: 'Next_Meeting_Date__c', touched: 'touchedDays',
-  mgrNotes: 'Manager_Review_Notes__c', warnings: 'warnCount',
+  mgrNotes: 'Manager_Review_Notes__c', warnings: 'warnCount', sqoDate: 'SQO_Date__c', closeDate: 'CloseDate',
 }
 
 function cText(t: string | null | undefined, style: CSSProperties = TEXT): ReactNode {
@@ -114,6 +115,18 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx,
       return c.Amount == null ? cText('—', META) : <span style={{ fontSize: 13, color: 'rgba(0,0,0,0.87)' }}>{moneyWithCurrency(c.Amount, c.CurrencyIsoCode)}</span>
     case 'createdBy':
       return cText(c['CreatedBy.Name'])
+    case 'sqoDate':
+      return cText(c.SQO_Date__c ? shortDate(c.SQO_Date__c) : null, META)
+    case 'closeDate':
+      if (isEditingRow) {
+        return (
+          <input
+            type="date" value={editCtx.draft.closeDate} onChange={e => editCtx.onDraftChange('closeDate', e.target.value)}
+            disabled={editCtx.saving} style={{ ...EDIT_FIELD, opacity: editCtx.saving ? 0.6 : 1 }}
+          />
+        )
+      }
+      return cText(c.CloseDate ? shortDate(c.CloseDate) : null)
     case 'reengage': {
       if (isEditingRow) {
         return (
@@ -209,6 +222,9 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx,
           </button>
         </span>
       )
+    case 'actions':
+      // Already past the initial meeting, so Qualify is always available — but not Nurture again.
+      return <ActionsMenu card={c} isHeld allowNurture={false} onAction={onAction} />
     default:
       return null
   }
@@ -219,7 +235,7 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   const recordB = b as unknown as Record<string, unknown>
   let x: unknown = record[key]
   let y: unknown = recordB[key]
-  if (key === 'Re_engagement_Date__c') { x = x || '9999'; y = y || '9999' }
+  if (key === 'Re_engagement_Date__c' || key === 'SQO_Date__c' || key === 'CloseDate') { x = x || '9999'; y = y || '9999' }
   if (typeof x === 'string') x = x.toLowerCase()
   if (typeof y === 'string') y = y.toLowerCase()
   if (x == null) x = ''
@@ -231,13 +247,12 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   return 0
 }
 
-export default function NurturingTable({ tab, rows, sortKey, sortDir, onSort, onInlineSave, onAction }: Props) {
+export default function NurturingTable({ rows, sortKey, sortDir, onSort, onInlineSave, onAction }: Props) {
   const keys = [...KEYS, 'spacer' as const]
   const gridTemplateColumns = keys.map(k => (k === 'spacer' ? '1fr' : WIDTHS[k])).join(' ')
   const gridStyle: CSSProperties = { display: 'grid', width: 'max-content', minWidth: '100%', boxSizing: 'border-box', gridTemplateColumns, gap: 12, alignItems: 'start' }
 
   const sorted = rows.slice().sort((a, b) => compareBy(a, b, sortKey, sortDir))
-  const isAllTab = tab === 'all'
 
   // Keyed by opportunity Id so any number of rows can be in edit mode at once.
   const [drafts, setDrafts] = useState<Record<string, InlineDraft>>({})
@@ -247,12 +262,13 @@ export default function NurturingTable({ tab, rows, sortKey, sortDir, onSort, on
     const draft = drafts[c.Id]
     return {
       isEditing: draft !== undefined,
-      draft: draft ?? { reengage: '', nurtureReason: '', nextStep: '', managerReviewNotes: '' },
+      draft: draft ?? { closeDate: '', reengage: '', nurtureReason: '', nextStep: '', managerReviewNotes: '' },
       saving: !!savingIds[c.Id],
       onDraftChange: (field, value) => setDrafts(prev => ({ ...prev, [c.Id]: { ...prev[c.Id], [field]: value } })),
       onStart: () => setDrafts(prev => ({
         ...prev,
         [c.Id]: {
+          closeDate: c.CloseDate ?? '',
           reengage: c.Re_engagement_Date__c ?? '',
           nurtureReason: c.Nurturing_Reason__c ?? '',
           nextStep: c.NextStep ?? '',
@@ -320,8 +336,7 @@ export default function NurturingTable({ tab, rows, sortKey, sortDir, onSort, on
         })}
       </div>
 
-      {isAllTab ? (
-        NURTURE_BUCKET_ORDER.map(group => {
+      {NURTURE_BUCKET_ORDER.map(group => {
           const items = sorted.filter(c => nurtureBucket(c) === group.key)
           if (!items.length) return null
           return (
@@ -349,21 +364,7 @@ export default function NurturingTable({ tab, rows, sortKey, sortDir, onSort, on
               })}
             </div>
           )
-        })
-      ) : (
-        sorted.map((c, i) => {
-          const editCtx = getEditCtx(c)
-          return (
-            <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === sorted.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
-              {keys.map(k => (
-                <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                  {k === 'spacer' ? null : renderCell(k, c, editCtx, onAction)}
-                </div>
-              ))}
-            </div>
-          )
-        })
-      )}
+        })}
 
       {sorted.length === 0 && (
         <div style={{ padding: '28px 16px', textAlign: 'center', fontSize: 13, color: 'rgba(0,0,0,0.38)' }}>No nurturing opportunities</div>

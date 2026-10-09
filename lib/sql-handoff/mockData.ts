@@ -19,6 +19,7 @@ function opp(partial: Partial<SFSqlHandoffOpportunity> & Pick<SFSqlHandoffOpport
     Record_Type_Name__c: 'New Subscription',
     Re_engagement_Date__c: null,
     Nurturing_Reason__c: null,
+    SQO_Date__c: null,
     Metrics__c: 'Red', Metrics_Grade_Reason__c: null, Metric_Notes__c: null,
     Economic_Buyer__c: 'Red', Economic_Buyer_Grade_Notes__c: null, Economic_Buyer_Notes__c: null,
     Decision_Criteria__c: 'Red', Decision_Criteria_Grade_Reason__c: null, Decision_Criteria_Notes__c: null,

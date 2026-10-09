@@ -30,8 +30,11 @@ interface RowEditCtx {
   onSave: () => void
 }
 
+/** The Nurturing tab renders NurturingTable instead, so this table only handles the Qualifying tabs. */
+export type PipelineTableTab = Exclude<TabKey, 'nurture'>
+
 interface Props {
-  tab: TabKey
+  tab: PipelineTableTab
   rows: EnrichedOpportunity[]
   sortKey: string
   sortDir: 1 | -1
@@ -53,7 +56,7 @@ const TITLE_CELL: CSSProperties = {
   boxShadow: '1px 0 0 0 rgba(0,0,0,0.06)', alignSelf: 'stretch', display: 'flex', alignItems: 'center',
 }
 
-const LAYOUT: Record<TabKey, ColumnKey[]> = {
+const LAYOUT: Record<PipelineTableTab, ColumnKey[]> = {
   all: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
   'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
   scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],

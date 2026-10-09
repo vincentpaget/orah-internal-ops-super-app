@@ -3,12 +3,15 @@
 import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { EnrichedOpportunity, ModalKind, TabKey, WarningKey } from '@/lib/sql-handoff/types'
-import { TABS, WARNINGS, PIPELINE_WARNING_KEYS, matchTab } from '@/lib/sql-handoff/logic'
+import { TABS, WARNINGS, PIPELINE_WARNING_KEYS, NURTURE_WARNING_KEYS, matchTab } from '@/lib/sql-handoff/logic'
 import PipelineTable from './PipelineTable'
+import NurturingTable from './NurturingTable'
 import MultiSelectFilter from './MultiSelectFilter'
 
 interface Props {
   scoped: EnrichedOpportunity[]
+  /** Qualifying opps only — `scoped` also includes Nurturing opps for the Nurture tab. */
+  openCount: number
   filtered: EnrichedOpportunity[]
   rowsForTab: EnrichedOpportunity[]
   query: string
@@ -35,6 +38,7 @@ interface Props {
   onSort: (k: string) => void
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
   onInlineSave: (card: EnrichedOpportunity, patch: { outcome: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
+  onNurtureInlineSave: (card: EnrichedOpportunity, patch: { closeDate: string; reengage: string; nurtureReason: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
 }
 
 const INPUT: CSSProperties = {
@@ -43,14 +47,15 @@ const INPUT: CSSProperties = {
 }
 
 export default function PipelineView({
-  scoped, filtered, rowsForTab, query, onQueryChange,
+  scoped, openCount, filtered, rowsForTab, query, onQueryChange,
   ownerSel, onToggleOwner, onClearOwner, ownerOptions,
   rtypeSel, onToggleRtype, onClearRtype, rtypeOptions,
   creatorSel, onToggleCreator, onClearCreator, creatorOptions,
-  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave,
+  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave, onNurtureInlineSave,
 }: Props) {
   const [warnFilterOpen, setWarnFilterOpen] = useState(false)
-  const pipelineWarnings = WARNINGS.filter(w => PIPELINE_WARNING_KEYS.includes(w.key))
+  const warningKeys = tab === 'nurture' ? NURTURE_WARNING_KEYS : PIPELINE_WARNING_KEYS
+  const pipelineWarnings = WARNINGS.filter(w => warningKeys.includes(w.key))
 
   const activeTab = TABS.find(t => t.key === tab)!
 
@@ -133,7 +138,7 @@ export default function PipelineView({
 
         <span style={{ flex: 1 }} />
         <span style={{ fontSize: 12, color: 'rgba(0,0,0,0.54)' }}>
-          {rowsForTab.length} in this view · {scoped.length} open
+          {rowsForTab.length} in this view · {openCount} open
         </span>
       </div>
 
@@ -175,7 +180,14 @@ export default function PipelineView({
               {activeTab.hint}
             </p>
           </div>
-          <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} />
+          {tab === 'nurture' ? (
+            <NurturingTable
+              rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort}
+              onInlineSave={onNurtureInlineSave} onAction={onAction}
+            />
+          ) : (
+            <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} />
+          )}
         </div>
       </div>
     </>

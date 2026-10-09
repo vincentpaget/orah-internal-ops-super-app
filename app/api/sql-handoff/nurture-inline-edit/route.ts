@@ -10,8 +10,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json()
-  const { opportunityId, reengage, nurtureReason, nextStep, managerReviewNotes } = body as {
+  const { opportunityId, reengage, nurtureReason, nextStep, managerReviewNotes, closeDate } = body as {
     opportunityId?: string
+    closeDate?: string | null
     reengage?: string | null
     nurtureReason?: string | null
     nextStep?: string | null
@@ -29,6 +30,8 @@ export async function POST(req: NextRequest) {
       Nurturing_Reason__c: nurtureReason || null,
       NextStep: nextStep || null,
       Manager_Review_Notes__c: managerReviewNotes || null,
+      // Close Date is required in Salesforce — only send it when a value is given, never clear it.
+      ...(closeDate ? { CloseDate: closeDate } : {}),
     })
     return NextResponse.json({ success: true })
   } catch (err) {

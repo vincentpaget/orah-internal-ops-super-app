@@ -68,7 +68,7 @@ const CORE_FIELD_LIST = `
   StageName, SQL_Date__c, Initial_Meeting_Outcome__c, Initial_Meeting_FUp_Email_Status__c,
   Next_Meeting_Date__c, Last_Meeting_Date__c, LastActivityDate,
   NextStep, Discovery_Notes__c, AI_Last_Update__c, AI_Next_Steps__c, Manager_Review_Notes__c,
-  Amount, CurrencyIsoCode, CloseDate, Record_Type_Name__c, Re_engagement_Date__c, Nurturing_Reason__c
+  Amount, CurrencyIsoCode, CloseDate, Record_Type_Name__c, Re_engagement_Date__c, Nurturing_Reason__c, SQO_Date__c
 `
 
 export async function fetchSqlHandoffOpportunities(): Promise<SFSqlHandoffOpportunity[]> {
