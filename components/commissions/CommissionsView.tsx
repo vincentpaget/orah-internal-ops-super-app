@@ -1,12 +1,12 @@
 'use client'
 
-import type { CommissionBand, DealEdit, DealEditFieldValue, SFCommissionOpportunity, SyncDealFn, SyncStatus } from '@/lib/commissions/types'
+import type { CompPlan, DealEdit, DealEditFieldValue, SFCommissionOpportunity, SyncDealFn, SyncStatus } from '@/lib/commissions/types'
 import { buildQuarterGroups } from '@/lib/commissions/calc'
 import QuarterDealsPanel from './QuarterDealsPanel'
 
 interface Props {
   deals: SFCommissionOpportunity[]
-  settingsByQuarter: Record<string, { quota: number; bands: CommissionBand[] }>
+  settingsByQuarter: Record<string, CompPlan>
   edits: Record<string, DealEdit>
   syncedEdits: Record<string, DealEdit>
   onEditField: (dealId: string, field: keyof DealEdit, value: DealEditFieldValue) => void
@@ -26,10 +26,13 @@ export default function CommissionsView({
   const groups = buildQuarterGroups(deals, settingsByQuarter)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
-      {groups.map(group => (
-        <QuarterDealsPanel
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {groups.map((group, i) => (
+        <div
           key={group.quarterKey}
+          style={i === 0 ? undefined : { marginTop: 40, paddingTop: 32, borderTop: '4px solid var(--navy-900)' }}
+        >
+        <QuarterDealsPanel
           group={group}
           edits={edits}
           syncedEdits={syncedEdits}
@@ -39,6 +42,7 @@ export default function CommissionsView({
           onSync={onSync}
           canEdit={canEdit}
         />
+        </div>
       ))}
     </div>
   )

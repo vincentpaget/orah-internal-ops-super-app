@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { verifyJWT } from '@/lib/session'
 import { getCommissionsPermissions } from '@/lib/commissions/permissions'
-import { fetchActiveSalesforceUsers, fetchClosedWonOwners, fetchCommissionOpportunitiesForOwner, fetchPayableOpportunities, fetchPendingOpportunities } from '@/lib/commissions/salesforce'
+import { fetchActiveSalesforceUsers, fetchClosedWonOwners, fetchCommissionOpportunitiesForOwner, fetchPaidOpportunities, fetchPayableOpportunities, fetchPendingOpportunities } from '@/lib/commissions/salesforce'
 import { defaultTrailingQuarterKeys, listQuarterOptions, quarterDateRange, quarterKeyForDate } from '@/lib/commissions/quarters'
 import { fetchCompPlanSettings, fetchSettingsConfig } from '@/lib/commissions/compPlanStore'
 import { DEFAULT_SETTINGS_QUARTERS, DEFAULT_SETTINGS_REPS } from '@/lib/commissions/settingsConfig'
@@ -31,6 +31,7 @@ export default async function CommissionsPage({ searchParams }: Props) {
   let deals: SFCommissionOpportunity[] = []
   let payableDeals: SFCommissionOpportunity[] = []
   let pendingDeals: SFCommissionOpportunity[] = []
+  let paidDeals: SFCommissionOpportunity[] = []
 
   const sfConfigured = Boolean(process.env.SF_USERNAME || process.env.SF_ACCESS_TOKEN)
 
@@ -78,6 +79,14 @@ export default async function CommissionsPage({ searchParams }: Props) {
   if (sfConfigured && !sfError) {
     try {
       pendingDeals = await fetchPendingOpportunities(scopedOwnerId)
+    } catch (err) {
+      sfError = err instanceof Error ? err.message : 'Unknown Salesforce error'
+    }
+  }
+
+  if (sfConfigured && !sfError) {
+    try {
+      paidDeals = await fetchPaidOpportunities(scopedOwnerId)
     } catch (err) {
       sfError = err instanceof Error ? err.message : 'Unknown Salesforce error'
     }
@@ -152,6 +161,7 @@ export default async function CommissionsPage({ searchParams }: Props) {
         quarterOptions={quarterOptions}
         payableDeals={payableDeals}
         pendingDeals={pendingDeals}
+        paidDeals={paidDeals}
         initialSettings={initialSettings}
         initialSettingsReps={settingsReps}
         initialSettingsQuarters={settingsQuarters}

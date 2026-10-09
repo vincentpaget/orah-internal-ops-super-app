@@ -7,9 +7,11 @@ import { toNZD } from '@/lib/commissions/currency'
 import { downloadPayableSummaryPdf } from '@/lib/commissions/pdf'
 import { nzd, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
+import PayRunHistoryView from './PayRunHistoryView'
 
 interface Props {
   deals: SFCommissionOpportunity[]
+  paidDeals: SFCommissionOpportunity[]
   edits: Record<string, DealEdit>
   syncedEdits: Record<string, DealEdit>
   onEditField: (dealId: string, field: keyof DealEdit, value: DealEditFieldValue) => void
@@ -203,7 +205,7 @@ function dirtyStyle(
   }
 }
 
-export default function PayableSummaryView({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Props) {
+function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Omit<Props, 'paidDeals'>) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -408,6 +410,42 @@ export default function PayableSummaryView({ deals, edits, syncedEdits, onEditFi
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+type PayableMode = 'upcoming' | 'history'
+
+function ModeButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '6px 12px',
+        borderRadius: 6,
+        border: `1px solid ${active ? 'var(--navy-900)' : 'var(--border)'}`,
+        background: active ? 'var(--blue-50)' : 'var(--bg)',
+        color: active ? 'var(--navy-900)' : 'var(--fg-2)',
+        fontSize: 12,
+        fontWeight: active ? 600 : 500,
+        fontFamily: 'inherit',
+        cursor: 'pointer',
+      }}
+    >
+      {children}
+    </button>
+  )
+}
+
+export default function PayableSummaryView({ paidDeals, ...props }: Props) {
+  const [mode, setMode] = useState<PayableMode>('upcoming')
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        <ModeButton active={mode === 'upcoming'} onClick={() => setMode('upcoming')}>Upcoming</ModeButton>
+        <ModeButton active={mode === 'history'} onClick={() => setMode('history')}>Pay Run History</ModeButton>
+      </div>
+      {mode === 'upcoming' ? <UpcomingPayables {...props} /> : <PayRunHistoryView deals={paidDeals} />}
     </div>
   )
 }

@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import type { CommissionBand, CompPlanSettings, DealEdit, DealEditFieldValue, SFCommissionOpportunity, StoredCompPlan, SyncStatus } from '@/lib/commissions/types'
-import { DEFAULT_BANDS, DEFAULT_QUOTA } from '@/lib/commissions/calc'
+import type { CommissionBand, CompPlan, CompPlanSettings, DealEdit, DealEditFieldValue, SFCommissionOpportunity, StoredCompPlan, SyncStatus } from '@/lib/commissions/types'
+import { DEFAULT_BANDS, DEFAULT_EXPANSION_RATE, DEFAULT_QUOTA } from '@/lib/commissions/calc'
 import CommissionsFilters from './CommissionsFilters'
 import CommissionsView from './CommissionsView'
 import SettingsView from './SettingsView'
@@ -18,6 +18,7 @@ interface Props {
   quarterOptions: { value: string; label: string }[]
   payableDeals: SFCommissionOpportunity[]
   pendingDeals: SFCommissionOpportunity[]
+  paidDeals: SFCommissionOpportunity[]
   initialSettings: CompPlanSettings
   initialSettingsReps: string[]
   initialSettingsQuarters: string[]
@@ -36,8 +37,8 @@ type TabKey = 'summary' | 'payable' | 'pending' | 'settings'
 
 const TABS: { key: TabKey; label: string }[] = [
   { key: 'summary', label: 'Rep Summary' },
-  { key: 'payable', label: 'Payable Summary' },
   { key: 'pending', label: 'Pending Summary' },
+  { key: 'payable', label: 'Payable Summary' },
   { key: 'settings', label: 'Settings' },
 ]
 
@@ -96,7 +97,7 @@ function RefreshButton({ syncing, onClick }: { syncing: boolean; onClick: () => 
   )
 }
 
-export default function CommissionsClient({ deals, selectedOwner, owners, selectedQuarters, quarterOptions, payableDeals, pendingDeals, initialSettings, initialSettingsReps, initialSettingsQuarters, activeUsers, isAdmin }: Props) {
+export default function CommissionsClient({ deals, selectedOwner, owners, selectedQuarters, quarterOptions, payableDeals, pendingDeals, paidDeals, initialSettings, initialSettingsReps, initialSettingsQuarters, activeUsers, isAdmin }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [refreshing, setRefreshing] = useState(false)
@@ -189,20 +190,27 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
     }
   }
 
-  function setQuota(cellId: string, quota: number) {
+  /** Merges a change into the cell's current plan (or the defaults), so editing one field never drops the others. */
+  function updateCell(cellId: string, patch: Partial<CompPlan>) {
     const existing = settings[cellId]
-    const bands = existing && existing !== 'empty' ? existing.bands : DEFAULT_BANDS
-    const next: StoredCompPlan = { quota, bands }
+    const base: CompPlan = existing && existing !== 'empty'
+      ? existing
+      : { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE }
+    const next: StoredCompPlan = { ...base, ...patch }
     setSettings(prev => ({ ...prev, [cellId]: next }))
     persistCell(cellId, next)
   }
 
+  function setQuota(cellId: string, quota: number) {
+    updateCell(cellId, { quota })
+  }
+
   function setBands(cellId: string, bands: CommissionBand[]) {
-    const existing = settings[cellId]
-    const quota = existing && existing !== 'empty' ? existing.quota : DEFAULT_QUOTA
-    const next: StoredCompPlan = { quota, bands }
-    setSettings(prev => ({ ...prev, [cellId]: next }))
-    persistCell(cellId, next)
+    updateCell(cellId, { bands })
+  }
+
+  function setExpansionRate(cellId: string, expansionRate: number | null) {
+    updateCell(cellId, { expansionRate })
   }
 
   function removeCell(cellId: string) {
@@ -212,13 +220,13 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
   }
 
   function addCell(cellId: string) {
-    const next: StoredCompPlan = { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS }
+    const next: StoredCompPlan = { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE }
     setSettings(prev => ({ ...prev, [cellId]: next }))
     persistCell(cellId, next)
   }
 
   const selectedOwnerName = owners.find(o => o.ownerId === selectedOwner)?.ownerName ?? null
-  const settingsByQuarterForSelectedOwner: Record<string, { quota: number; bands: CommissionBand[] }> = {}
+  const settingsByQuarterForSelectedOwner: Record<string, CompPlan> = {}
   if (selectedOwnerName) {
     const prefix = `${selectedOwnerName}::`
     for (const [key, value] of Object.entries(settings)) {
@@ -294,6 +302,7 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
         <section style={CARD}>
           <PayableSummaryView
             deals={payableDeals}
+            paidDeals={paidDeals}
             edits={edits}
             syncedEdits={syncedEdits}
             onEditField={setEditField}
@@ -326,6 +335,7 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
             settings={settings}
             onSetQuota={setQuota}
             onSetBands={setBands}
+            onSetExpansionRate={setExpansionRate}
             onRemoveCell={removeCell}
             onAddCell={addCell}
             initialReps={initialSettingsReps}

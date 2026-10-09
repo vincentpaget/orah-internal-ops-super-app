@@ -108,6 +108,7 @@ interface Props {
   settings: CompPlanSettings
   onSetQuota: (cellId: string, quota: number) => void
   onSetBands: (cellId: string, bands: CommissionBand[]) => void
+  onSetExpansionRate: (cellId: string, rate: number | null) => void
   onRemoveCell: (cellId: string) => void
   onAddCell: (cellId: string) => void
   initialReps: string[]
@@ -116,7 +117,7 @@ interface Props {
 }
 
 export default function SettingsView({
-  settings, onSetQuota, onSetBands, onRemoveCell, onAddCell,
+  settings, onSetQuota, onSetBands, onSetExpansionRate, onRemoveCell, onAddCell,
   initialReps, initialQuarters, activeUsers,
 }: Props) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
@@ -211,7 +212,7 @@ export default function SettingsView({
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '0 0 16px' }}>
-        Shared across everyone — comp plans set here feed directly into Rep Summary&apos;s quota-attainment calculations.
+        Shared across everyone — comp plans set here feed directly into Rep Summary&apos;s quota-attainment calculations. Set an expansion rate to pay non-New-Business deals at a flat rate outside the bands; leave it blank to include them in the bands.
       </p>
 
       {configError && (
@@ -268,10 +269,12 @@ export default function SettingsView({
                             groupId={id}
                             quota={stored.quota}
                             bands={stored.bands}
+                            expansionRate={stored.expansionRate ?? null}
                             isEditing={editingIds.has(id)}
                             onToggleEditing={toggleEditing}
                             onQuotaChange={onSetQuota}
                             onBandsChange={onSetBands}
+                            onExpansionRateChange={onSetExpansionRate}
                             onRemove={handleRemoveCell}
                           />
                         )}

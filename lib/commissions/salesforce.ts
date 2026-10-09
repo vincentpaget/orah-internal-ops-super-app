@@ -159,6 +159,18 @@ export async function fetchPayableOpportunities(ownerId?: string): Promise<SFCom
   `)
 }
 
+/** Every deal whose commission has been paid — the source for Payable Summary's pay-run history. */
+export async function fetchPaidOpportunities(ownerId?: string): Promise<SFCommissionOpportunity[]> {
+  return queryAllOpportunities(`
+    SELECT ${OPPORTUNITY_FIELDS}
+    FROM Opportunity
+    WHERE StageName = 'Closed Won'
+      AND Commission_Paid__c = true
+      ${commissionOwnerFilterClause(ownerId)}
+    ORDER BY Commission_Paid_Date__c DESC
+  `)
+}
+
 export async function fetchPendingOpportunities(ownerId?: string): Promise<SFCommissionOpportunity[]> {
   return queryAllOpportunities(`
     SELECT ${OPPORTUNITY_FIELDS}

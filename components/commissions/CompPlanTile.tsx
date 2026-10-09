@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import type { CommissionBand } from '@/lib/commissions/types'
-import { marginalCommission } from '@/lib/commissions/calc'
+import { DEFAULT_EXPANSION_RATE, marginalCommission } from '@/lib/commissions/calc'
 import { nzd } from '@/lib/formatters'
 
 interface Props {
   groupId: string
   quota: number
   bands: CommissionBand[]
+  expansionRate: number | null
   isEditing: boolean
   onToggleEditing: (groupId: string) => void
   onQuotaChange: (groupId: string, quota: number) => void
   onBandsChange: (groupId: string, bands: CommissionBand[]) => void
+  onExpansionRateChange: (groupId: string, rate: number | null) => void
   onRemove: (groupId: string) => void
 }
 
@@ -68,6 +70,19 @@ const TH: React.CSSProperties = {
 
 const TD: React.CSSProperties = { padding: '3px 6px' }
 
+const SECTION_LABEL: React.CSSProperties = {
+  fontSize: 10, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 6,
+}
+
+function ModeRadio({ name, checked, label, onSelect }: { name: string; checked: boolean; label: string; onSelect: () => void }) {
+  return (
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--fg-1)', cursor: 'pointer' }}>
+      <input type="radio" name={name} checked={checked} onChange={onSelect} style={{ margin: 0, cursor: 'pointer' }} />
+      {label}
+    </label>
+  )
+}
+
 function EditToggleButton({ editing, onClick }: { editing: boolean; onClick: () => void }) {
   return (
     <button
@@ -114,8 +129,10 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-export default function CompPlanTile({ groupId, quota, bands, isEditing, onToggleEditing, onQuotaChange, onBandsChange, onRemove }: Props) {
+export default function CompPlanTile({ groupId, quota, bands, expansionRate, isEditing, onToggleEditing, onQuotaChange, onBandsChange, onExpansionRateChange, onRemove }: Props) {
   const drafts = toDrafts(bands)
+  const expansionRatePct = expansionRate == null ? null : Math.round(expansionRate * 10000) / 100
+  const [lastFlatRate, setLastFlatRate] = useState(expansionRate ?? DEFAULT_EXPANSION_RATE)
   const [rawEdits, setRawEdits] = useState<Record<string, string>>({})
 
   // Drop any in-progress blank/invalid text once the tile locks back to view mode,
@@ -145,6 +162,21 @@ export default function CompPlanTile({ groupId, quota, bands, isEditing, onToggl
       delete next[key]
       return next
     })
+  }
+
+  /** Switching to "Flat rate" restores the last flat rate used in this session, or the 8% default. */
+  function setExpansionMode(mode: 'bands' | 'flat') {
+    setRawEdits(prev => {
+      const next = { ...prev }
+      delete next.expansionRate
+      return next
+    })
+    if (mode === 'bands') {
+      if (expansionRate != null) setLastFlatRate(expansionRate)
+      onExpansionRateChange(groupId, null)
+    } else if (expansionRate == null) {
+      onExpansionRateChange(groupId, lastFlatRate)
+    }
   }
 
   function updateBand(index: number, field: 'maxPct' | 'ratePct', value: number) {
@@ -293,8 +325,8 @@ export default function CompPlanTile({ groupId, quota, bands, isEditing, onToggl
       )}
 
       <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
-        <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 6 }}>
-          Expected Commission
+        <div style={SECTION_LABEL}>
+          Expected Commission{expansionRatePct != null ? ' (New Business)' : ''}
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
           <span style={{ color: 'var(--fg-2)' }}>At 100% attainment</span>
@@ -304,6 +336,47 @@ export default function CompPlanTile({ groupId, quota, bands, isEditing, onToggl
           <span style={{ color: 'var(--fg-2)' }}>At 120% attainment</span>
           <span style={{ fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{nzd(commissionAt120)}</span>
         </div>
+      </div>
+
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
+        <div style={SECTION_LABEL}>Expansion Commission</div>
+        {isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <ModeRadio
+              name={`${groupId}-expansion-mode`}
+              checked={expansionRate == null}
+              label="Included in quota bands"
+              onSelect={() => setExpansionMode('bands')}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ModeRadio
+                name={`${groupId}-expansion-mode`}
+                checked={expansionRate != null}
+                label="Flat rate"
+                onSelect={() => setExpansionMode('flat')}
+              />
+              {expansionRatePct != null && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={displayValue('expansionRate', expansionRatePct)}
+                    onChange={e => handleNumberInput('expansionRate', e.target.value, value => onExpansionRateChange(groupId, value / 100))}
+                    style={{ ...INPUT, width: 60 }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>%</span>
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+            <span style={{ color: 'var(--fg-2)' }}>{expansionRatePct == null ? 'Included in quota bands' : 'Flat rate'}</span>
+            {expansionRatePct != null && (
+              <span style={{ fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{expansionRatePct}%</span>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -46,6 +46,8 @@ export interface CommissionDeal extends SFCommissionOpportunity {
   calculatedCommission: number
   effectiveRate: number
   band: CommissionBand
+  /** True when this deal was commissioned at the quarter's flat expansion rate (outside the quota bands). */
+  isExpansionFlat: boolean
 }
 
 export interface DealEdit {
@@ -81,8 +83,21 @@ export interface QuarterCommissionGroup {
   totalSfCommissionAmount: number
   totalSfPaidAmount: number
   finalAttainment: number
+  /** Flat rate for non-New-Business deals this quarter, or `null` if they run through the bands. */
+  expansionRate: number | null
+  newBusinessAmount: number
+  newBusinessCommission: number
+  expansionAmount: number
+  expansionCommission: number
+}
+
+/** A comp plan as consumed by the calculation — `expansionRate` null/absent = expansions go through the bands. */
+export interface CompPlan {
+  quota: number
+  bands: CommissionBand[]
+  expansionRate?: number | null
 }
 
 /** A rep+quarter comp plan, keyed by `${repName}::${quarterKey}` — or `'empty'` if the rep had no plan that period. */
-export type StoredCompPlan = { quota: number; bands: CommissionBand[] } | 'empty'
+export type StoredCompPlan = CompPlan | 'empty'
 export type CompPlanSettings = Record<string, StoredCompPlan>

@@ -78,3 +78,70 @@ export function buildPayableGroups(deals: SFCommissionOpportunity[]): PayableRep
 
   return repGroups.sort((a, b) => a.ownerName.localeCompare(b.ownerName))
 }
+
+export interface PayRunRep {
+  ownerId: string
+  ownerName: string
+  deals: SFCommissionOpportunity[]
+  dealCount: number
+  totalPaidNZD: number
+}
+
+export interface PayRun {
+  monthKey: string
+  monthLabel: string
+  reps: PayRunRep[]
+  dealCount: number
+  repCount: number
+  totalPaidNZD: number
+}
+
+/** What was actually paid — the SF Paid Amount, falling back to the SF Commission Amount if Ops left it blank. */
+export function paidAmountNZD(deal: SFCommissionOpportunity): number {
+  return deal.Commission_Paid_Amount_NZD__c ?? deal.Commission_Amount_NZD__c ?? 0
+}
+
+/** Paid deals grouped into monthly pay runs (by Commission Paid Date), newest first, then by rep. */
+export function buildPayRunHistory(deals: SFCommissionOpportunity[]): PayRun[] {
+  const byMonth = new Map<string, SFCommissionOpportunity[]>()
+  for (const deal of deals) {
+    const key = monthKeyForDate(deal.Commission_Paid_Date__c)
+    const list = byMonth.get(key) ?? []
+    list.push(deal)
+    byMonth.set(key, list)
+  }
+
+  const runs: PayRun[] = [...byMonth.entries()].map(([monthKey, monthDeals]) => {
+    const byOwner = new Map<string, SFCommissionOpportunity[]>()
+    for (const deal of monthDeals) {
+      const list = byOwner.get(deal.OwnerId) ?? []
+      list.push(deal)
+      byOwner.set(deal.OwnerId, list)
+    }
+    const reps: PayRunRep[] = [...byOwner.entries()].map(([ownerId, ownerDeals]) => {
+      const sorted = [...ownerDeals].sort((a, b) => a.CloseDate.localeCompare(b.CloseDate))
+      return {
+        ownerId,
+        ownerName: sorted[0]['Owner.Name'],
+        deals: sorted,
+        dealCount: sorted.length,
+        totalPaidNZD: sorted.reduce((s, d) => s + paidAmountNZD(d), 0),
+      }
+    })
+    reps.sort((a, b) => a.ownerName.localeCompare(b.ownerName))
+    return {
+      monthKey,
+      monthLabel: monthLabel(monthKey),
+      reps,
+      dealCount: monthDeals.length,
+      repCount: reps.length,
+      totalPaidNZD: reps.reduce((s, r) => s + r.totalPaidNZD, 0),
+    }
+  })
+
+  return runs.sort((a, b) => {
+    if (a.monthKey === UNSCHEDULED_KEY) return 1
+    if (b.monthKey === UNSCHEDULED_KEY) return -1
+    return b.monthKey.localeCompare(a.monthKey)
+  })
+}

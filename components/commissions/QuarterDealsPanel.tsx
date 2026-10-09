@@ -3,8 +3,9 @@
 import { useState } from 'react'
 import type { CommissionBand, DealEdit, DealEditFieldValue, QuarterCommissionGroup, SyncDealFn, SyncStatus } from '@/lib/commissions/types'
 import { DEAL_VIEWS } from '@/lib/commissions/views'
-import { nzd, percent } from '@/lib/formatters'
-import CommissionsTable from './CommissionsTable'
+import { nzd } from '@/lib/formatters'
+import { isNewBusiness } from '@/lib/commissions/calc'
+import CommissionsTable, { type DealSection } from './CommissionsTable'
 
 function bandDollarRange(quota: number, bands: CommissionBand[], index: number): string {
   const prevMax = index === 0 ? 0 : bands[index - 1].max
@@ -29,12 +30,27 @@ const PILL: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-function StatPill({ label, value }: { label: string; value: string }) {
+const ROW: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }
+
+function QuarterHeading({ label }: { label: string }) {
   return (
-    <div style={PILL}>
-      <span>{label}</span>
-      <span style={{ fontWeight: 700, color: '#262626' }}>{value}</span>
-    </div>
+    <h2 style={{
+      fontSize: 18, fontWeight: 700, color: 'var(--navy-900)', margin: 0,
+      paddingLeft: 10, borderLeft: '4px solid var(--navy-900)', lineHeight: 1.2,
+    }}>
+      {label}
+    </h2>
+  )
+}
+
+function GroupLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span style={{
+      marginLeft: 8, marginRight: 2, fontSize: 11, fontWeight: 600, letterSpacing: '0.04em',
+      textTransform: 'uppercase', color: 'rgba(0,0,0,0.54)',
+    }}>
+      {children}
+    </span>
   )
 }
 
@@ -75,11 +91,12 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
   const [viewKey, setViewKey] = useState(DEAL_VIEWS[0].key)
   const view = DEAL_VIEWS.find(v => v.key === viewKey) ?? DEAL_VIEWS[0]
   const filteredDeals = group.deals.filter(view.filter)
+  const tableProps = { edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }
 
   if (!group.hasPlan) {
     return (
       <div>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{group.quarterLabel}</h2>
+        <QuarterHeading label={group.quarterLabel} />
         <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '6px 0 0', fontStyle: 'italic' }}>
           No comp plan set for this quarter — commissions aren&apos;t calculated. Set one in the Settings tab to see calculations here.
         </p>
@@ -87,68 +104,64 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
     )
   }
 
+  const expansionRatePct = group.expansionRate != null ? `${Math.round(group.expansionRate * 10000) / 100}%` : null
+  const sections: DealSection[] | undefined = expansionRatePct != null
+    ? [
+        { key: 'new_business', title: 'New Business Deals', deals: filteredDeals.filter(isNewBusiness) },
+        { key: 'expansion', title: 'Expansion Deals', deals: filteredDeals.filter(d => !isNewBusiness(d)) },
+      ]
+    : undefined
+
   return (
     <div>
-      <div style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{group.quarterLabel}</h2>
+      <QuarterHeading label={group.quarterLabel} />
 
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24, flexWrap: 'wrap',
-          marginTop: 8, padding: '0 0 12px', borderBottom: '1px solid var(--border)',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <StatPill label="Quota" value={nzd(group.quota)} />
-            <StatPill label="Won" value={nzd(group.totalAmount)} />
-            <StatPill label="Attainment" value={percent(group.finalAttainment)} />
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(0,0,0,0.54)', marginRight: 2 }}>
-              Commission bands
-            </span>
-            {group.bands.map((band, i) => (
-              <BandPill
-                key={band.key}
-                range={bandDollarRange(group.quota, group.bands, i)}
-                rate={`${Math.round(band.rate * 10000) / 100}%`}
-              />
-            ))}
-          </div>
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap',
+        margin: '14px 0 12px',
+      }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {DEAL_VIEWS.map(v => {
+            const count = group.deals.filter(v.filter).length
+            const active = v.key === viewKey
+            return (
+              <button
+                key={v.key}
+                onClick={() => setViewKey(v.key)}
+                style={{
+                  ...TAB,
+                  background: active ? 'var(--blue-50)' : 'var(--bg)',
+                  color: active ? 'var(--navy-900)' : 'var(--fg-2)',
+                  borderColor: active ? 'var(--navy-900)' : 'var(--border)',
+                  fontWeight: active ? 600 : 500,
+                }}
+              >
+                {v.label} ({count})
+              </button>
+            )
+          })}
         </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-        {DEAL_VIEWS.map(v => {
-          const count = group.deals.filter(v.filter).length
-          const active = v.key === viewKey
-          return (
-            <button
-              key={v.key}
-              onClick={() => setViewKey(v.key)}
-              style={{
-                ...TAB,
-                background: active ? 'var(--blue-50)' : 'var(--bg)',
-                color: active ? 'var(--navy-900)' : 'var(--fg-2)',
-                borderColor: active ? 'var(--navy-900)' : 'var(--border)',
-                fontWeight: active ? 600 : 500,
-              }}
-            >
-              {v.label} ({count})
-            </button>
-          )
-        })}
+        <div style={ROW}>
+          <GroupLabel>{expansionRatePct != null ? 'New Business bands' : 'Commission bands'}</GroupLabel>
+          <BandPill range="Quota" rate={nzd(group.quota)} />
+          {group.bands.map((band, i) => (
+            <BandPill
+              key={band.key}
+              range={bandDollarRange(group.quota, group.bands, i)}
+              rate={`${Math.round(band.rate * 10000) / 100}%`}
+            />
+          ))}
+          <GroupLabel>Expansion</GroupLabel>
+          <BandPill range={expansionRatePct != null ? 'Flat' : 'In bands'} rate={expansionRatePct ?? ''} />
+        </div>
       </div>
 
       <CommissionsTable
         deals={filteredDeals}
+        sections={sections}
         columns={view.columns}
         showBandLines={view.key === 'all'}
-        edits={edits}
-        syncedEdits={syncedEdits}
-        onEditField={onEditField}
-        onUndoEdits={onUndoEdits}
-        syncStatus={syncStatus}
-        onSync={onSync}
-        canEdit={canEdit}
+        {...tableProps}
       />
     </div>
   )

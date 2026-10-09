@@ -6,10 +6,20 @@ import { COLUMN_GROUPS } from '@/lib/commissions/views'
 import { nzd, percent, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
 
+/** A labelled group of rows (e.g. New Business / Expansion) with its own subtotal row. */
+export interface DealSection {
+  key: string
+  title: string
+  detail?: string
+  deals: CommissionDeal[]
+}
+
 interface Props {
   deals: CommissionDeal[]
   columns: string[]
   showBandLines?: boolean
+  /** When given, rows render grouped under section header rows, each with a subtotal, plus a grand total. */
+  sections?: DealSection[]
   edits: Record<string, DealEdit>
   syncedEdits: Record<string, DealEdit>
   onEditField: (dealId: string, field: keyof DealEdit, value: DealEditFieldValue) => void
@@ -20,6 +30,8 @@ interface Props {
 }
 
 const STICKY_1_WIDTH = 260
+/** Left indent for rows inside a grouped section, so the group headings stand out. */
+const GROUP_INDENT = 26
 const STRIPE_BG = 'var(--bg-subtle)'
 const BAND_BREAK_BORDER = '2px solid'
 
@@ -58,7 +70,10 @@ const STICKY_1: React.CSSProperties = {
 
 const BAND_ACCENT_PALETTE = ['var(--fg-3)', 'var(--blue-500)', 'var(--green-600)', 'var(--purple-500)', 'var(--orange-700)', 'var(--red-600)']
 
+const FLAT_ACCENT = 'var(--fg-3)'
+
 function bandAccent(key: string): string {
+  if (key === 'exp') return FLAT_ACCENT
   const n = Number(key)
   const idx = Number.isFinite(n) && n > 0 ? (n - 1) % BAND_ACCENT_PALETTE.length : 0
   return BAND_ACCENT_PALETTE[idx]
@@ -240,25 +255,36 @@ function SyncCell({ status, onClick }: { status?: SyncStatus; onClick: () => voi
   )
 }
 
+/** Compact expand/collapse chip that sits in the sticky Opportunity column header, so it stays visible while scrolling. */
 function GroupToggle({ label, collapsed, onClick }: { label: string; collapsed: boolean; onClick: () => void }) {
-  const text = `${collapsed ? 'Show' : 'Hide'} ${label}`
   return (
     <button
       onClick={onClick}
-      title={text}
+      title={`${collapsed ? 'Show' : 'Hide'} ${label}`}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
-        height: 26, padding: '0 10px', borderRadius: 6,
+        display: 'inline-flex', alignItems: 'center', gap: 3,
+        height: 18, padding: '0 6px', borderRadius: 4,
         border: '1px solid var(--border)',
-        background: collapsed ? 'var(--bg-subtle)' : 'var(--bg)',
-        color: 'var(--fg-2)', fontSize: 12, fontFamily: 'inherit', cursor: 'pointer',
+        background: collapsed ? 'var(--bg-subtle)' : 'var(--blue-50)',
+        color: collapsed ? 'var(--fg-2)' : 'var(--navy-900)',
+        fontSize: 10, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer',
+        textTransform: 'none', letterSpacing: 'normal',
       }}
     >
-      <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style={{ transition: 'transform 150ms', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
-        <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-      </svg>
-      {text}
+      {collapsed ? '+' : '−'} Details
     </button>
+  )
+}
+
+/** Shown in quota columns for deals paid at the quarter's flat expansion rate — they don't count toward quota. */
+function FlatTag() {
+  return (
+    <span
+      title="Flat expansion rate — doesn't count toward quota"
+      style={{ fontSize: 11, fontWeight: 600, color: FLAT_ACCENT, textTransform: 'uppercase', letterSpacing: '0.04em' }}
+    >
+      Flat
+    </span>
   )
 }
 
@@ -330,7 +356,7 @@ interface ColumnDef {
   cell: (deal: CommissionDeal) => React.ReactNode
 }
 
-export default function CommissionsTable({ deals, columns, showBandLines = true, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Props) {
+export default function CommissionsTable({ deals, columns, showBandLines = true, sections, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Props) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(() => new Set(COLUMN_GROUPS.map(g => g.id)))
 
@@ -394,11 +420,15 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
     },
     amountCumulative: {
       header: 'Amount Cumulative', align: 'right',
-      cell: deal => <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{nzd(deal.cumulativeAmountNZD)}</span>,
+      cell: deal => deal.isExpansionFlat
+        ? <FlatTag />
+        : <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{nzd(deal.cumulativeAmountNZD)}</span>,
     },
     attainment: {
       header: 'Attainment', align: 'right',
-      cell: deal => <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: bandAccent(deal.band.key) }}>{percent(deal.attainmentAfter)}</span>,
+      cell: deal => deal.isExpansionFlat
+        ? <FlatTag />
+        : <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: bandAccent(deal.band.key) }}>{percent(deal.attainmentAfter)}</span>,
     },
     calculatedCommission: {
       header: 'Calculated Commission', align: 'right',
@@ -566,53 +596,164 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
   const visibleKeys = columns.filter(key => COLUMN_DEFS[key] && !hiddenKeys.has(key))
   const relevantGroups = COLUMN_GROUPS.filter(group => group.keys.some(k => columns.includes(k)))
 
-  const totalAmountNZD = deals.reduce((s, d) => s + d.amountNZD, 0)
-  const totalSfCommissionAmount = deals.reduce((s, d) => s + (effectiveCommissionAmount(d, edits) ?? 0), 0)
-  const totalSfPaidAmount = deals.reduce((s, d) => {
-    const edit = edits[d.Id]
-    const effective = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : d.Commission_Paid_Amount_NZD__c
-    return s + (effective ?? 0)
-  }, 0)
-  const totalPendingAmount = deals.reduce((s, d) => {
-    const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === false
-    return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
-  }, 0)
-  const totalPayableAmount = deals.reduce((s, d) => {
-    const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === true
-    return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
-  }, 0)
-  const totalCalculatedCommission = deals.reduce((s, d) => s + d.calculatedCommission, 0)
-  const finalAttainmentShown = deals.length > 0 ? deals[deals.length - 1].attainmentAfter : 0
+  const TOTAL_NUM: React.CSSProperties = { fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }
 
-  const FOOTER_VALUES: Record<string, React.ReactNode> = {
-    amountNZD: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{nzd(totalAmountNZD)}</span>,
-    attainment: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{percent(finalAttainmentShown)}</span>,
-    calculatedCommission: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{nzd(totalCalculatedCommission)}</span>,
-    sfCommissionAmount: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--green-700)' }}>{nzd(totalSfCommissionAmount)}</span>,
-    pendingAmount: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{nzd(totalPendingAmount)}</span>,
-    payableAmount: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{nzd(totalPayableAmount)}</span>,
-    sfPaidAmount: <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>{nzd(totalSfPaidAmount)}</span>,
+  function footerValues(rows: CommissionDeal[]): Record<string, React.ReactNode> {
+    const totalAmountNZD = rows.reduce((s, d) => s + d.amountNZD, 0)
+    const totalSfCommissionAmount = rows.reduce((s, d) => s + (effectiveCommissionAmount(d, edits) ?? 0), 0)
+    const totalSfPaidAmount = rows.reduce((s, d) => {
+      const edit = edits[d.Id]
+      const effective = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : d.Commission_Paid_Amount_NZD__c
+      return s + (effective ?? 0)
+    }, 0)
+    const totalPendingAmount = rows.reduce((s, d) => {
+      const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === false
+      return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
+    }, 0)
+    const totalPayableAmount = rows.reduce((s, d) => {
+      const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === true
+      return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
+    }, 0)
+    const totalCalculatedCommission = rows.reduce((s, d) => s + d.calculatedCommission, 0)
+    const bandDeals = rows.filter(d => !d.isExpansionFlat)
+    const finalAttainmentShown = bandDeals.length > 0 ? bandDeals[bandDeals.length - 1].attainmentAfter : null
+
+    return {
+      amountNZD: <span style={TOTAL_NUM}>{nzd(totalAmountNZD)}</span>,
+      attainment: finalAttainmentShown == null ? null : <span style={TOTAL_NUM}>{percent(finalAttainmentShown)}</span>,
+      calculatedCommission: <span style={TOTAL_NUM}>{nzd(totalCalculatedCommission)}</span>,
+      sfCommissionAmount: <span style={{ ...TOTAL_NUM, color: 'var(--green-700)' }}>{nzd(totalSfCommissionAmount)}</span>,
+      pendingAmount: <span style={TOTAL_NUM}>{nzd(totalPendingAmount)}</span>,
+      payableAmount: <span style={TOTAL_NUM}>{nzd(totalPayableAmount)}</span>,
+      sfPaidAmount: <span style={TOTAL_NUM}>{nzd(totalSfPaidAmount)}</span>,
+    }
+  }
+
+  const columnCount = 2 + visibleKeys.length + (canEdit ? 4 : 0)
+
+  function totalsRow(key: string, label: string, rows: CommissionDeal[], variant: 'subtotal' | 'grand') {
+    const values = footerValues(rows)
+    // Grouped grand total mixes New Business with flat-rate Expansion — attainment there is already on the NB subtotal.
+    if (variant === 'grand' && sections) delete values.attainment
+    const cellStyle: React.CSSProperties = variant === 'grand'
+      ? { ...TD, borderBottom: 'none', borderTop: '2px solid var(--border-strong)', background: 'var(--bg)' }
+      : { ...TD, borderTop: '1px solid var(--border)', background: 'var(--bg)' }
+    return (
+      <tr key={key}>
+        <td style={{
+          ...cellStyle, ...STICKY_1, fontWeight: 700, color: 'var(--fg-1)',
+          ...(variant === 'subtotal' ? { paddingLeft: GROUP_INDENT } : {}),
+          ...(variant === 'grand' && sections ? { fontSize: 14, paddingTop: 10, paddingBottom: 10 } : {}),
+        }}>
+          {label}
+        </td>
+        <td style={cellStyle} />
+        {visibleKeys.map(k => (
+          <td key={k} style={{ ...cellStyle, textAlign: COLUMN_DEFS[k].align, ...calculatedColumnStyle(k, visibleKeys) }}>
+            {values[k] ?? null}
+          </td>
+        ))}
+        {canEdit && <td style={cellStyle} colSpan={4} />}
+      </tr>
+    )
+  }
+
+  function sectionHeaderRow(section: DealSection, isFirst: boolean) {
+    const cellStyle: React.CSSProperties = {
+      ...TD, background: 'var(--bg)', borderBottom: '1px solid var(--border)',
+      paddingTop: isFirst ? 14 : 36, paddingBottom: 8, verticalAlign: 'bottom',
+    }
+    return (
+      <tr key={`${section.key}-header`}>
+        <td style={{ ...cellStyle, ...STICKY_1, overflow: 'visible', fontSize: 14, fontWeight: 600, color: 'var(--fg-1)', whiteSpace: 'nowrap' }}>
+          {section.title}
+          <span style={{ marginLeft: 10, fontSize: 12, fontWeight: 400, color: 'var(--fg-3)' }}>{section.detail ?? ''}</span>
+        </td>
+        <td style={cellStyle} colSpan={columnCount - 1} />
+      </tr>
+    )
+  }
+
+
+  function dealRow(deal: CommissionDeal, i: number, prev: CommissionDeal | undefined, indented = false) {
+    const stripeBg = i % 2 === 0 ? STRIPE_BG : 'var(--bg)'
+    const isBandBreak = showBandLines && prev != null && deal.band.key !== prev.band.key
+    const breakBorder = isBandBreak ? { borderTop: `${BAND_BREAK_BORDER} ${bandAccent(deal.band.key)}` } : {}
+    const edit = edits[deal.Id]
+    const effectiveAmount = effectiveCommissionAmount(deal, edits)
+    const effectiveNotes = edit?.commissionNotes !== undefined ? edit.commissionNotes : deal.Commission_Notes__c
+    const effectivePaid = effectivePaidOf(deal, edits)
+    const effectivePaidAmount = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : deal.Commission_Paid_Amount_NZD__c
+    const effectivePaidDate = edit?.commissionPaidDate !== undefined ? edit.commissionPaidDate : deal.Commission_Paid_Date__c
+    return (
+      <tr key={deal.Id} style={{ background: stripeBg }}>
+        <td style={{ ...TD, ...STICKY_1, ...breakBorder, textAlign: 'left', background: stripeBg, ...(indented ? { paddingLeft: GROUP_INDENT } : {}) }}>
+          <SalesforceLink label={deal.Name} opportunityId={deal.Id} />
+        </td>
+        <td style={{ ...TD, ...breakBorder, textAlign: 'left', color: 'var(--fg-2)' }}>{deal.recordOwnerName || '—'}</td>
+        {visibleKeys.map(key => (
+          <td
+            key={key}
+            style={{
+              ...TD, ...breakBorder,
+              textAlign: COLUMN_DEFS[key].align,
+              minWidth: COLUMN_DEFS[key].minWidth,
+              ...calculatedColumnStyle(key, visibleKeys),
+              ...dirtyCellStyle(key, deal.Id, edits, syncedEdits),
+            }}
+          >
+            {COLUMN_DEFS[key].cell(deal)}
+          </td>
+        ))}
+        {canEdit && (
+          <>
+            <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
+              <EditToggleButton editing={editingIds.has(deal.Id)} onClick={() => toggleEditing(deal.Id)} />
+            </td>
+            <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
+              <CopyToSfButton onClick={() => onEditField(deal.Id, 'commissionAmount', deal.calculatedCommission)} />
+            </td>
+            <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
+              <UndoButton disabled={!edit} onClick={() => onUndoEdits(deal.Id)} />
+            </td>
+            <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
+              <SyncCell
+                status={syncStatus[deal.Id]}
+                onClick={() => onSync(
+                  deal.Id,
+                  effectiveAmount ?? null,
+                  effectiveNotes ?? null,
+                  effectivePaid ?? null,
+                  effectivePaidAmount ?? null,
+                  effectivePaidDate ?? null
+                )}
+              />
+            </td>
+          </>
+        )}
+      </tr>
+    )
   }
 
   return (
     <div>
-      {relevantGroups.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          {relevantGroups.map(group => (
-            <GroupToggle
-              key={group.id}
-              label={group.label}
-              collapsed={collapsedGroups.has(group.id)}
-              onClick={() => toggleGroup(group.id)}
-            />
-          ))}
-        </div>
-      )}
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: 'auto', borderCollapse: 'separate', borderSpacing: 0, fontSize: 12 }}>
           <thead>
             <tr>
-              <th style={{ ...TH, ...STICKY_1, textAlign: 'left' }}>Opportunity</th>
+              <th style={{ ...TH, ...STICKY_1, textAlign: 'left' }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  Opportunity
+                  {relevantGroups.map(group => (
+                    <GroupToggle
+                      key={group.id}
+                      label={group.label}
+                      collapsed={collapsedGroups.has(group.id)}
+                      onClick={() => toggleGroup(group.id)}
+                    />
+                  ))}
+                </span>
+              </th>
               <th style={{ ...TH, textAlign: 'left' }}>Owner</th>
               {visibleKeys.map(key => (
                 <th key={key} style={{ ...TH, textAlign: COLUMN_DEFS[key].align, minWidth: COLUMN_DEFS[key].minWidth, ...calculatedColumnStyle(key, visibleKeys) }}>{COLUMN_DEFS[key].header}</th>
@@ -628,77 +769,21 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
             </tr>
           </thead>
           <tbody>
-            {deals.map((deal, i) => {
-              const stripeBg = i % 2 === 0 ? STRIPE_BG : 'var(--bg)'
-              const isBandBreak = showBandLines && i > 0 && deal.band.key !== deals[i - 1].band.key
-              const breakBorder = isBandBreak ? { borderTop: `${BAND_BREAK_BORDER} ${bandAccent(deal.band.key)}` } : {}
-              const edit = edits[deal.Id]
-              const effectiveAmount = effectiveCommissionAmount(deal, edits)
-              const effectiveNotes = edit?.commissionNotes !== undefined ? edit.commissionNotes : deal.Commission_Notes__c
-              const effectivePaid = effectivePaidOf(deal, edits)
-              const effectivePaidAmount = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : deal.Commission_Paid_Amount_NZD__c
-              const effectivePaidDate = edit?.commissionPaidDate !== undefined ? edit.commissionPaidDate : deal.Commission_Paid_Date__c
-              return (
-                <tr key={deal.Id} style={{ background: stripeBg }}>
-                  <td style={{ ...TD, ...STICKY_1, ...breakBorder, textAlign: 'left', background: stripeBg }}>
-                    <SalesforceLink label={deal.Name} opportunityId={deal.Id} />
-                  </td>
-                  <td style={{ ...TD, ...breakBorder, textAlign: 'left', color: 'var(--fg-2)' }}>{deal.recordOwnerName || '—'}</td>
-                  {visibleKeys.map(key => (
-                    <td
-                      key={key}
-                      style={{
-                        ...TD, ...breakBorder,
-                        textAlign: COLUMN_DEFS[key].align,
-                        minWidth: COLUMN_DEFS[key].minWidth,
-                        ...calculatedColumnStyle(key, visibleKeys),
-                        ...dirtyCellStyle(key, deal.Id, edits, syncedEdits),
-                      }}
-                    >
-                      {COLUMN_DEFS[key].cell(deal)}
-                    </td>
-                  ))}
-                  {canEdit && (
-                    <>
-                      <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
-                        <EditToggleButton editing={editingIds.has(deal.Id)} onClick={() => toggleEditing(deal.Id)} />
-                      </td>
-                      <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
-                        <CopyToSfButton onClick={() => onEditField(deal.Id, 'commissionAmount', deal.calculatedCommission)} />
-                      </td>
-                      <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
-                        <UndoButton disabled={!edit} onClick={() => onUndoEdits(deal.Id)} />
-                      </td>
-                      <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
-                        <SyncCell
-                          status={syncStatus[deal.Id]}
-                          onClick={() => onSync(
-                            deal.Id,
-                            effectiveAmount ?? null,
-                            effectiveNotes ?? null,
-                            effectivePaid ?? null,
-                            effectivePaidAmount ?? null,
-                            effectivePaidDate ?? null
-                          )}
-                        />
-                      </td>
-                    </>
-                  )}
-                </tr>
-              )
-            })}
+            {sections
+              ? sections.filter(sec => sec.deals.length > 0).flatMap((sec, idx) => [
+                  sectionHeaderRow(sec, idx === 0),
+                  ...sec.deals.map((deal, i) => dealRow(deal, i, sec.deals[i - 1], true)),
+                  totalsRow(`${sec.key}-subtotal`, `${sec.title} subtotal`, sec.deals, 'subtotal'),
+                ])
+              : deals.map((deal, i) => dealRow(deal, i, deals[i - 1]))}
           </tbody>
           <tfoot>
-            <tr>
-              <td style={{ ...TD, ...STICKY_1, borderBottom: 'none', fontWeight: 700, color: 'var(--fg-1)', background: 'var(--bg)' }}>Total</td>
-              <td style={{ ...TD, borderBottom: 'none' }} />
-              {visibleKeys.map(key => (
-                <td key={key} style={{ ...TD, borderBottom: 'none', textAlign: COLUMN_DEFS[key].align, ...calculatedColumnStyle(key, visibleKeys) }}>
-                  {FOOTER_VALUES[key] ?? null}
-                </td>
-              ))}
-              {canEdit && <td style={{ ...TD, borderBottom: 'none' }} colSpan={4} />}
-            </tr>
+            {sections && (
+              <tr aria-hidden>
+                <td style={{ height: 28, padding: 0, background: 'var(--bg)' }} colSpan={columnCount} />
+              </tr>
+            )}
+            {totalsRow('grand-total', sections ? 'Grand Total' : 'Total', deals, 'grand')}
           </tfoot>
         </table>
       </div>
