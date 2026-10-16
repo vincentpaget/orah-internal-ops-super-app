@@ -48,6 +48,13 @@ const TOOLS = [
     bg: 'var(--blue-50)',
   },
   {
+    href: '/pricing',
+    title: 'Pricing',
+    description: 'Package overview with what\'s included in each plan, plus an interactive pricing calculator for quotes.',
+    color: 'var(--navy-900)',
+    bg: 'var(--blue-50)',
+  },
+  {
     href: '/commissions',
     title: 'Commissions',
     description: 'Calculate rep commission on Closed Won deals against quarterly quota attainment.',

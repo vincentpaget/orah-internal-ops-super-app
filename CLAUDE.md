@@ -14,6 +14,7 @@ Four tools that used to live in separate GitHub repos and Vercel deployments:
 | CRM Dedupe | orah-crm-dedupe | `/dedupe` |
 | Event Lead Pipeline | orah-event-lead-pipeline | `/event-leads` |
 | Campaign Setup | orah-campaign-setup-app | `/campaign-setup` |
+| Pricing (overview + calculator) | Webflow embeds (pricing-internal, pricing-calculator) | `/pricing`, `/pricing/calculator` — all prices live in `lib/pricing/data.ts` |
 
 All four share Salesforce OAuth login. The home page at `/` shows a tool-picker grid.
 

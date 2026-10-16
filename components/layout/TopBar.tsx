@@ -6,7 +6,7 @@ function initials(name: string) {
 
 export default function TopBar({ userName }: { userName: string }) {
   return (
-    <header style={{
+    <header data-print-hide style={{
       height: 56,
       background: 'var(--navy-900)',
       color: 'var(--fg-on-brand)',

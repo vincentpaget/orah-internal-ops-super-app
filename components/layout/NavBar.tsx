@@ -106,6 +106,16 @@ function SqlHandoffIcon({ active }: { active: boolean }) {
   )
 }
 
+function PricingIcon({ active }: { active: boolean }) {
+  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
+  return (
+    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+      <path d="M10.6 2.5H16a1.5 1.5 0 011.5 1.5v5.4a1.5 1.5 0 01-.44 1.06l-6.6 6.6a1.5 1.5 0 01-2.12 0L3.94 12.66a1.5 1.5 0 010-2.12l6.6-6.6a1.5 1.5 0 011.06-.44z" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx="13.5" cy="6.5" r="1.3" stroke={c} strokeWidth="1.6"/>
+    </svg>
+  )
+}
+
 function AdminIcon({ active }: { active: boolean }) {
   const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
   return (
@@ -139,6 +149,7 @@ const NAV_ITEMS = [
   { href: '/dedupe', label: 'CRM Dedupe', Icon: DedupeIcon, match: (p: string) => p.startsWith('/dedupe') },
   { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },
   { href: '/pricing-migration', label: 'Pricing Migration', Icon: PricingMigrationIcon, match: (p: string) => p.startsWith('/pricing-migration') },
+  { href: '/pricing', label: 'Pricing', Icon: PricingIcon, match: (p: string) => p === '/pricing' || p.startsWith('/pricing/') },
   { href: '/commissions', label: 'Commissions', Icon: CommissionsIcon, match: (p: string) => p.startsWith('/commissions') },
   { href: '/sql-handoff', label: 'SQL Handoff', Icon: SqlHandoffIcon, match: (p: string) => p.startsWith('/sql-handoff') },
 ]
@@ -156,7 +167,7 @@ export default function NavBar({ collapsed, onToggle }: Props) {
   const pathname = usePathname()
 
   return (
-    <nav style={{
+    <nav data-print-hide style={{
       width: collapsed ? 56 : 220,
       background: 'var(--bg)',
       borderRight: '1px solid var(--border)',

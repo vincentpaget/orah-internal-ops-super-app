@@ -12,7 +12,7 @@ export default function AppShell({ userName, children }: { userName: string; chi
       <TopBar userName={userName} />
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 56px)' }}>
         <NavBar collapsed={navCollapsed} onToggle={() => setNavCollapsed(c => !c)} />
-        <main style={{ flex: 1, padding: '32px 40px 64px', minWidth: 0, overflowX: 'hidden' }}>
+        <main style={{ flex: 1, padding: '32px 40px 64px', minWidth: 0, overflowX: 'clip' }}>
           {children}
         </main>
       </div>

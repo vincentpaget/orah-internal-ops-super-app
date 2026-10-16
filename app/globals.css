@@ -85,3 +85,8 @@ table { border-collapse: separate; border-spacing: 0; }
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+
+/* App chrome (TopBar, NavBar, tool sub-navs) opts out of printing via data-print-hide */
+@media print {
+  [data-print-hide] { display: none !important; }
+}
