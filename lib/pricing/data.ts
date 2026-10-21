@@ -63,6 +63,8 @@ export const ADDONS = {
 export interface TierAddon extends Addon {
   /** Already included for base-platform students; buy more only for extra (e.g. day) students. */
   includedInTier?: boolean
+  /** Caveat for this tier, shown with an asterisk next to the add-on name. */
+  note?: string
 }
 
 // ── Tiers ───────────────────────────────────────────────────────────────────
@@ -93,7 +95,10 @@ export const TIERS: Record<Platform, Tier[]> = {
       featured: false,
       includesPrefix: 'Includes:',
       onboarding: { name: 'Onboarding Lite', prices: P.onbLite },
-      addons: [ADDONS.nurture],
+      addons: [
+        ADDONS.nurture,
+        { ...ADDONS.dismissals, note: 'Only available via CSV import, SIS write back not available' },
+      ],
       cardFeatures: ['Attendance insights', 'Automated alerts', 'SIS one-way integration'],
     },
     {

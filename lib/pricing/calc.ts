@@ -38,6 +38,7 @@ export interface QuoteInput {
 
 export interface QuoteAddonLine {
   name: string
+  note?: string
   perStudent: boolean
   quantity: number
   unitPrice: number
@@ -70,6 +71,7 @@ export function calculateQuote(input: QuoteInput): Quote | null {
     const unitPrice = getPrice(addon.prices, input.currency)
     addonLines.push({
       name: addon.name,
+      note: addon.note,
       perStudent: addon.perStudent,
       quantity,
       unitPrice,
@@ -106,7 +108,8 @@ export function quoteToText(q: Quote, input: QuoteInput): string {
     text += `Add-ons:\n`
     for (const l of q.addonLines) {
       const calc = l.perStudent ? `${l.quantity} students × ${sym}${l.unitPrice}` : m(l.unitPrice)
-      text += `  - ${l.name}: ${calc} = ${m(l.cost)}\n`
+      text += `  - ${l.name}${l.note ? '*' : ''}: ${calc} = ${m(l.cost)}\n`
+      if (l.note) text += `    *${l.note}\n`
     }
     text += `\n`
   }

@@ -3,7 +3,7 @@ import type { SFOpportunity, SFRenewalOpp, SFExpansionOpp } from './types'
 
 let _conn: Connection | null = null
 
-async function getConn(): Promise<Connection> {
+export async function getConn(): Promise<Connection> {
   if (_conn) return _conn
   let conn: Connection
   if (process.env.SF_ACCESS_TOKEN && process.env.SF_INSTANCE_URL) {

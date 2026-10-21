@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { TIERS, type CurrencyCode, type Platform, type TierAddon } from '@/lib/pricing/data'
 import { MIN_STUDENTS, calculateQuote, currencyName, currencySymbol, findTier, formatAddonPrice, formatMoney, getPrice, quoteToText, type Quote } from '@/lib/pricing/calc'
 import { CurrencySelect, PageHeader, PlatformToggle } from './Controls'
+import OfferBuilder from './offer/OfferBuilder'
 import styles from './pricing.module.css'
 
 /** Per add-on selection. `all` = quantity follows the student count. */
@@ -50,11 +51,17 @@ function AddonRow({
     <div style={{ border: '1px solid var(--border-strong)', borderRadius: 8, padding: 14, marginBottom: 10, background: 'var(--bg)' }}>
       <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
         <div>
-          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy-900)' }}>{addon.name}</div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy-900)' }}>
+            {addon.name}{addon.note && <span style={{ color: 'var(--orange-700)' }}> *</span>}
+          </div>
           <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{formatAddonPrice(addon, currency)}</div>
         </div>
         <input type="checkbox" checked={checked} onChange={e => onToggle(e.target.checked)} style={{ width: 20, height: 20, cursor: 'pointer' }} />
       </label>
+
+      {addon.note && (
+        <div style={{ fontSize: 12, color: 'var(--orange-700)', marginTop: 6 }}>* {addon.note}</div>
+      )}
 
       {addon.includedInTier && (
         <div style={{ background: 'var(--blue-50)', borderLeft: '3px solid var(--blue-500)', padding: '10px 12px', marginTop: 10, borderRadius: 4, fontSize: 12, color: 'var(--blue-700)' }}>
@@ -122,7 +129,12 @@ function Summary({ quote, currency, copied, onCopy }: { quote: Quote | null; cur
         <div style={divider}>
           <div style={{ fontWeight: 600, marginBottom: 10, color: 'var(--navy-900)', fontSize: 14 }}>Add-ons:</div>
           {quote.addonLines.map(l => (
-            <SummaryRow key={l.name} label={l.name} sub={l.perStudent ? `${l.quantity} students` : 'Flat fee'} value={m(l.cost)} />
+            <SummaryRow
+              key={l.name}
+              label={l.note ? `${l.name}*` : l.name}
+              sub={(l.perStudent ? `${l.quantity} students` : 'Flat fee') + (l.note ? ` · *${l.note}` : '')}
+              value={m(l.cost)}
+            />
           ))}
         </div>
       )}
@@ -182,6 +194,7 @@ export default function PricingCalculator() {
   const [tierId, setTierId] = useState<string | null>(null)
   const [selections, setSelections] = useState<Record<string, AddonSelection>>({})
   const [copied, setCopied] = useState(false)
+  const [offerMode, setOfferMode] = useState(false)
 
   const rawStudents = parseInt(studentInput) || 0
   const studentCount = Math.max(MIN_STUDENTS, rawStudents)
@@ -249,6 +262,10 @@ export default function PricingCalculator() {
     if (!quote || !quoteInput) return
     await navigator.clipboard.writeText(quoteToText(quote, quoteInput))
     setCopied(true)
+  }
+
+  if (offerMode && quote && quoteInput) {
+    return <OfferBuilder quote={quote} quoteInput={quoteInput} onBack={() => setOfferMode(false)} />
   }
 
   return (
@@ -378,11 +395,23 @@ export default function PricingCalculator() {
         </div>
 
         {/* Summary */}
-        <div className={styles.summaryPanel} style={PANEL}>
-          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--navy-900)', textAlign: 'center', margin: '0 0 20px' }}>
-            Pricing Summary
-          </h2>
-          <Summary quote={quote} currency={currency} copied={copied} onCopy={copy} />
+        <div>
+          <div className={styles.summaryPanel} style={PANEL}>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 20, fontWeight: 700, color: 'var(--navy-900)', textAlign: 'center', margin: '0 0 20px' }}>
+              Pricing Summary
+            </h2>
+            <Summary quote={quote} currency={currency} copied={copied} onCopy={copy} />
+          </div>
+          {quote && (
+            <button
+              type="button"
+              className={`${styles.primaryBtn} ${styles.noPrint}`}
+              onClick={() => { setOfferMode(true); window.scrollTo(0, 0) }}
+              style={{ display: 'block', width: '100%', marginTop: 16, padding: '14px 16px', borderRadius: 8, border: 'none', background: 'var(--blue-500)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
+            >
+              Generate Proposal Offer →
+            </button>
+          )}
         </div>
       </div>
     </div>
