@@ -127,6 +127,7 @@ export interface MockRepQuota {
 // ── CS Pipeline ──────────────────────────────────────────────────────────────
 
 export type RenewalStage =
+  | 'Not Contacted'
   | 'Pending'
   | 'Qualifying'
   | 'Evaluation'
@@ -137,6 +138,7 @@ export type RenewalStage =
   | 'Closed Lost - Churned'
 
 export const RENEWAL_STAGE_ORDER: RenewalStage[] = [
+  'Not Contacted',
   'Pending',
   'Qualifying',
   'Evaluation',
@@ -191,6 +193,7 @@ export interface SFRenewalOpp {
   Expansion_Status__c: string | null
   Expansion_Notes__c: string | null
   Renewal_Risk_Notes__c: string | null
+  Manager_Review_Notes__c?: string | null
   Do_Not_Auto_Renew__c: boolean | null
   Notice_Period_Waived__c: boolean | null
   Churn_Reason_External__c: string | null
@@ -202,6 +205,11 @@ export interface SFRenewalOpp {
   Auto_Renewal_Amount_NZD__c: number | null
   Auto_Renewal_Net_ARR__c: number | null
   Auto_Renewal_Net_ARR_NZD__c: number | null
+  Category__c?: string | null
+  Initial_Meeting_Outcome__c?: string | null
+  Last_Meeting_Date__c?: string | null
+  Next_Meeting_Date__c?: string | null
+  LastActivityDate?: string | null
   'Pricebook2.Name': string | null
 }
 
@@ -226,11 +234,17 @@ export interface SFExpansionOpp {
   Net_ARR__c: number | null
   Category__c: string | null
   Expansion_Notes__c: string | null
+  Renewal_Risk_Notes__c?: string | null
+  Manager_Review_Notes__c?: string | null
   Do_Not_Auto_Renew__c: boolean | null
   CurrencyIsoCode: string | null
   Booked_ARR__c: number | null
   Net_ARR_NZD__c: number | null
   Booked_ARR_NZD__c: number | null
   ARR_Basis_NZD__c: number | null
+  Initial_Meeting_Outcome__c?: string | null
+  Last_Meeting_Date__c?: string | null
+  Next_Meeting_Date__c?: string | null
+  LastActivityDate?: string | null
   'Pricebook2.Name': string | null
 }

@@ -7,13 +7,13 @@ function startOfCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
 }
 
-export const OPEN_RENEWAL_STAGES = new Set(['Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
+export const OPEN_RENEWAL_STAGES = new Set(['Not Contacted', 'Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 export const OPEN_EXPANSION_STAGES = new Set(['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 
 const EXPANSION_TYPES = new Set(['Upsell (Existing Students)', 'Cross Sell (New Students)'])
 
 const VALID_RENEWAL_STAGES = new Set([
-  'Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing',
+  'Not Contacted', 'Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing',
   'Closed Won', 'Closed Lost', 'Closed Lost - Churned', 'Closed - Recycle',
 ])
 

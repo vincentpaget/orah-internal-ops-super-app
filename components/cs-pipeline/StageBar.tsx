@@ -1,8 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import type { ArrMetric } from './CsPipelineShell'
-import { FS } from '@/lib/fontSizes'
+import { ALL_SQOS, type ArrMetric } from './CsPipelineShell'
 
 interface StageStat {
   name: string
@@ -17,6 +16,8 @@ interface Props {
   metric: ArrMetric
   onMetricChange: (m: ArrMetric) => void
 }
+
+const SQO_STAGE_NAMES = ['Evaluation', 'Proposal', 'Negotiation', 'Closing']
 
 function formatArr(amount: number): string {
   if (amount === 0) return '$0'
@@ -41,18 +42,18 @@ export default function StageBar({ stats, activeStage, filterSearch, metric, onM
     router.push(`/cs-pipeline?${params.toString()}`)
   }
 
-  // "All Open Stages" tile: exclude any stage whose name contains "Closed"
-  const openStats = stats.filter(st => !st.name.includes('Closed'))
-  const openCount = openStats.reduce((s, st) => s + st.count, 0)
-  const openArr   = openStats.reduce((s, st) => s + st.totalArr, 0)
+  // "All SQOs" tile: Evaluation through Closing. It filters the table like any other stage tile.
+  const sqoStats = stats.filter(st => SQO_STAGE_NAMES.includes(st.name))
+  const sqoCount = sqoStats.reduce((s, st) => s + st.count, 0)
+  const sqoArr   = sqoStats.reduce((s, st) => s + st.totalArr, 0)
 
-  const tiles: (StageStat & { key: string | null })[] = [
-    { key: null, name: 'All Open Stages', count: openCount, totalArr: openArr },
+  const tiles: (StageStat & { key: string })[] = [
+    { key: ALL_SQOS, name: ALL_SQOS, count: sqoCount, totalArr: sqoArr },
     ...stats.map(st => ({ ...st, key: st.name })),
   ]
 
   return (
-    <div style={{ marginBottom: 24 }}>
+    <div>
       {/* Metric toggle */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
         <div style={{
@@ -82,52 +83,38 @@ export default function StageBar({ stats, activeStage, filterSearch, metric, onM
         </div>
       </div>
 
-      {/* Stage tiles */}
-      <div style={{ overflowX: 'auto' }}>
-        <div style={{ display: 'flex', gap: 10, minWidth: 'max-content' }}>
-          {tiles.map(st => {
-            const isActive = st.key === null ? activeStage === null : activeStage === st.name
-            const isEmpty = st.count === 0
-            return (
-              <button
-                key={st.key ?? '__all__'}
-                onClick={() => { if (!isActive) selectStage(st.key) }}
-                style={{
-                  display: 'flex', flexDirection: 'column', gap: 2,
-                  padding: '12px 16px', borderRadius: 8,
-                  border: `1px solid ${isActive ? 'var(--navy-900)' : 'var(--border)'}`,
-                  background: isActive ? 'var(--navy-900)' : 'var(--bg)',
-                  color: isActive ? '#fff' : isEmpty ? 'var(--fg-3)' : 'var(--fg-2)',
-                  cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
-                  minWidth: 110, transition: 'background 120ms, border-color 120ms, color 120ms',
-                  flexShrink: 0, opacity: isEmpty && !isActive && st.key !== null ? 0.6 : 1,
-                }}
-                onMouseEnter={e => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.background = 'var(--bg-subtle)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!isActive) {
-                    (e.currentTarget as HTMLElement).style.background = 'var(--bg)'
-                    ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
-                  }
-                }}
-              >
-                <span style={{ ...FS.badge, fontWeight: 700, color: isActive ? 'rgba(255,255,255,0.75)' : 'var(--fg-3)', textTransform: 'uppercase', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                  {st.name}
-                </span>
-                <span style={{ fontSize: 20, fontWeight: 700, lineHeight: 1.15, fontVariantNumeric: 'tabular-nums', color: isActive ? '#fff' : isEmpty ? 'var(--fg-3)' : 'var(--fg-1)' }}>
-                  {formatArr(st.totalArr)}
-                </span>
-                <span style={{ ...FS.badge, color: isActive ? 'rgba(255,255,255,0.65)' : 'var(--fg-3)' }}>
-                  {st.count} deal{st.count !== 1 ? 's' : ''}
-                </span>
-              </button>
-            )
-          })}
-        </div>
+      {/* Stage tabs: same folder-tab style as SQL Handoff. They sit on top of the table card below. */}
+      <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', flexWrap: 'wrap', position: 'relative', zIndex: 2 }}>
+        {tiles.map(st => {
+          const isActive = activeStage === st.key
+          const isEmpty = st.count === 0
+          return (
+            <button
+              key={st.key}
+              onClick={() => selectStage(isActive ? null : st.key)}
+              title={isActive ? 'Click again to show all stages' : undefined}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, minWidth: 132,
+                padding: '10px 14px 12px', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit',
+                border: `1px solid ${isActive ? 'var(--border)' : 'transparent'}`,
+                borderTop: `3px solid ${isActive ? 'var(--blue-500)' : 'transparent'}`,
+                borderBottom: isActive ? '1px solid var(--bg)' : '1px solid transparent',
+                borderRadius: '10px 10px 0 0', marginBottom: -1,
+                background: isActive ? 'var(--bg)' : '#F0F0F0',
+              }}
+            >
+              <span style={{ fontSize: 22, fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', color: isActive ? 'var(--blue-500)' : isEmpty ? 'rgba(0,0,0,0.38)' : '#262626' }}>
+                {st.count}
+              </span>
+              <span style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.01em', whiteSpace: 'nowrap', color: isActive ? '#003F7F' : 'rgba(0,0,0,0.66)' }}>
+                {st.name}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: isEmpty ? 'rgba(0,0,0,0.38)' : 'var(--fg-2)' }}>
+                {formatArr(st.totalArr)}
+              </span>
+            </button>
+          )
+        })}
       </div>
     </div>
   )

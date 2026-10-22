@@ -3,10 +3,12 @@
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { SFRenewalOpp, SFExpansionOpp } from '@/lib/types'
+import type { CsPicklists } from '@/lib/salesforce'
 import StageBar from './StageBar'
 import RenewalsTable from './RenewalsTable'
 import ExpansionsTable from './ExpansionsTable'
 import AllDealsTable from './AllDealsTable'
+import SimplifiedTable from './SimplifiedTable'
 import ClosingSoonRenewalsTable from './ClosingSoonRenewalsTable'
 import RenewalsDueSoonTable from './RenewalsDueSoonTable'
 import RepBreakdownWidget from './RepBreakdownWidget'
@@ -40,6 +42,7 @@ interface Props {
   activeTile: string | null
   tileCounts: { total: number; pending_auto: number; flagged_auto: number; do_not_auto: number; in_progress: number }
   closingSoonBaseOpps: SFRenewalOpp[]
+  picklists: Record<'renewal' | 'expansion', CsPicklists> | null
 }
 
 const TYPE_ORDER = [
@@ -70,7 +73,12 @@ const RENEWAL_DISPLAY_STAGES = ['Pending', 'Qualifying', 'Evaluation', 'Proposal
 const EXPANSION_DISPLAY_STAGES = ['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing', 'Closed Won', 'Closed Lost']
 const ALL_DISPLAY_STAGES = ['Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing', 'Closed Won', 'Closed Lost']
 
+// "All SQOs" tile: deals from Evaluation through Closing
+export const ALL_SQOS = 'All SQOs'
+const SQO_STAGES = new Set(['Evaluation', 'Proposal', 'Negotiation', 'Closing'])
+
 function stageMatches(stageName: string, displayStage: string): boolean {
+  if (displayStage === ALL_SQOS) return SQO_STAGES.has(stageName)
   return displayStage === 'Closed Lost' ? CLOSED_LOST_GROUP.has(stageName) : stageName === displayStage
 }
 
@@ -195,6 +203,7 @@ export default function CsPipelineShell({
   activeTile,
   tileCounts,
   closingSoonBaseOpps,
+  picklists,
 }: Props) {
   const router = useRouter()
   const [syncState, setSyncState] = useState<'idle' | 'syncing' | 'done'>('idle')
@@ -269,11 +278,14 @@ export default function CsPipelineShell({
 
   const isExpansions = activeView === 'expansions'
   const isAll = activeView === 'all'
+  const isSimplified = activeView === 'simplified'
+  // Views that show renewals + expansions together with the stage bar
+  const isCombined = isAll || isSimplified
   const isHygiene = activeView === 'hygiene'
   const isRevOps = activeView === 'revops'
   const isClosingSoon = activeView === 'closing-soon'
   const isRenewalsDueSoon = activeView === 'renewal-due-soon'
-  const isRenewals = !isExpansions && !isAll && !isHygiene && !isRevOps && !isClosingSoon && !isRenewalsDueSoon
+  const isRenewals = !isExpansions && !isCombined && !isHygiene && !isRevOps && !isClosingSoon && !isRenewalsDueSoon
 
   const todayStr = new Date().toISOString().slice(0, 10)
   const minClosedDate = activeDatePreset?.startsWith('next_') ? todayStr : null
@@ -282,28 +294,30 @@ export default function CsPipelineShell({
   const expansionStats = computeExpansionStats(expansionOpps, metric, minClosedDate)
   const allStats       = computeAllStats(renewalOpps, expansionOpps, metric, minClosedDate)
 
+  // No stage tab selected: show everything the page loaded. With "All dates" that's open deals only;
+  // with a specific period it includes the deals closed in that period.
   const filteredRenewals = activeStage
     ? renewalOpps.filter(o => stageMatches(o.StageName, activeStage))
-    : renewalOpps.filter(o => !o.StageName.includes('Closed'))
+    : renewalOpps
 
   const filteredExpansions = activeStage
     ? expansionOpps.filter(o => stageMatches(o.StageName, activeStage))
-    : expansionOpps.filter(o => !o.StageName.includes('Closed'))
+    : expansionOpps
 
   const count = isRevOps
     ? renewalOpps.length + expansionOpps.length
     : (isClosingSoon || isRenewalsDueSoon)
       ? renewalOpps.length
-      : isAll
+      : isCombined
         ? filteredRenewals.length + filteredExpansions.length
         : isRenewals ? filteredRenewals.length : filteredExpansions.length
 
-  const owners = (isAll || isHygiene || isRevOps)
+  const owners = (isCombined || isHygiene || isRevOps)
     ? [...new Set([...renewalOwners, ...expansionOwners])].sort()
     : (isRenewals || isClosingSoon || isRenewalsDueSoon) ? renewalOwners : expansionOwners
 
   const availableTypes = sortByTypeOrder(
-    (isAll || isRevOps)
+    (isCombined || isRevOps)
       ? [...new Set([...renewalTypes, ...expansionTypes])]
       : (isRenewals || isClosingSoon || isRenewalsDueSoon) ? renewalTypes : expansionTypes
   )
@@ -321,6 +335,7 @@ export default function CsPipelineShell({
               <ViewTab label="All Deals" active={isAll} onClick={() => switchView('all')} />
               <ViewTab label="Renewals" active={isRenewals} onClick={() => switchView('renewals')} />
               <ViewTab label="Expansions" active={isExpansions} onClick={() => switchView('expansions')} />
+              <ViewTab label="Simplified" active={isSimplified} onClick={() => switchView('simplified')} />
             </div>
           </div>
           <div>
@@ -549,25 +564,27 @@ export default function CsPipelineShell({
               {count} deal{count !== 1 ? 's' : ''}
             </span>
           </div>
-          <AllDealsTable renewals={renewalOpps} expansions={expansionOpps} />
+          <AllDealsTable renewals={renewalOpps} expansions={expansionOpps} picklists={picklists} />
         </div>
       ) : (
         <>
           {/* Stage summary bar */}
           <StageBar
-            stats={isAll ? allStats : isRenewals ? renewalStats : expansionStats}
+            stats={isCombined ? allStats : isRenewals ? renewalStats : expansionStats}
             activeStage={activeStage}
             filterSearch={filterSearch}
             metric={metric}
             onMetricChange={setMetric}
           />
 
-          {/* Table card */}
+          {/* Table card — the stage tabs above attach to its top edge */}
           <div style={{
             background: 'var(--bg)',
             border: '1px solid var(--border)',
-            borderRadius: 10,
+            borderRadius: '0 10px 10px 10px',
             overflow: 'hidden',
+            position: 'relative',
+            zIndex: 1,
           }}>
             <div style={{
               padding: '14px 20px',
@@ -577,7 +594,7 @@ export default function CsPipelineShell({
               gap: 10,
             }}>
               <span style={{ ...FS.heading, fontWeight: 600, color: 'var(--fg-1)' }}>
-                {activeStage ?? (isAll ? 'All Deals' : isRenewals ? 'All Renewals' : 'All Expansions')}
+                {activeStage ?? (isCombined ? 'All Deals' : isRenewals ? 'All Renewals' : 'All Expansions')}
               </span>
               <span style={{
                 display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -589,8 +606,10 @@ export default function CsPipelineShell({
               </span>
             </div>
 
-            {isAll
-              ? <AllDealsTable renewals={filteredRenewals} expansions={filteredExpansions} />
+            {isSimplified
+              ? <SimplifiedTable renewals={filteredRenewals} expansions={filteredExpansions} />
+              : isAll
+              ? <AllDealsTable renewals={filteredRenewals} expansions={filteredExpansions} picklists={picklists} />
               : isRenewals
                 ? <RenewalsTable opps={filteredRenewals} activeStage={activeStage} />
                 : <ExpansionsTable opps={filteredExpansions} />

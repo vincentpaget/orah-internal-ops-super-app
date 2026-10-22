@@ -1,28 +1,47 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { SFRenewalOpp, SFExpansionOpp } from '@/lib/types'
+import type { CsPicklists } from '@/lib/salesforce'
 import { getRenewalFlags, getExpansionFlags } from '@/lib/csHygiene'
 import FlagsCell from './FlagsCell'
 import SalesforceLink from '@/components/ui/SalesforceLink'
 import DatePill from '@/components/ui/DatePill'
-import { fmtCurrency } from '@/lib/formatters'
+import { fmtCurrency, shortDate } from '@/lib/formatters'
 import { FS } from '@/lib/fontSizes'
+import { SpinnerIcon, PencilIcon, EDIT_FIELD, EDIT_TEXTAREA } from '@/components/sql-handoff/InlineEditKit'
+import Toast from '@/components/sql-handoff/Toast'
+import { outcomePill } from '@/lib/sql-handoff/logic'
 
 interface Props {
   renewals: SFRenewalOpp[]
   expansions: SFExpansionOpp[]
+  /** Dropdown options per record type. Null leaves Stage, Type and Category read-only. */
+  picklists?: Record<'renewal' | 'expansion', CsPicklists> | null
 }
 
-type SortCol = 'flags' | 'stage' | 'arr_basis' | 'auto_renewal' | 'auto_renewal_net_arr' | 'booked_arr' | 'net_arr' | 'close_date'
+type SortCol = 'flags' | 'stage' | 'arr_basis' | 'auto_renewal' | 'net_arr' | 'close_date' | 'last_meeting' | 'next_meeting' | 'last_touched'
+
+// Fields that can be edited from the row's Edit button and written back to Salesforce
+const EDIT_FIELDS = [
+  'StageName', 'Type', 'Category__c', 'CloseDate', 'NextStep',
+  'Expansion_Notes__c', 'Renewal_Risk_Notes__c', 'Manager_Review_Notes__c', 'Initial_Meeting_Outcome__c',
+] as const
+type EditField = typeof EDIT_FIELDS[number]
+type TextField = 'NextStep' | 'Expansion_Notes__c' | 'Renewal_Risk_Notes__c' | 'Manager_Review_Notes__c'
+type Draft = Record<EditField, string>
+type Overrides = Record<string, Partial<Record<EditField, string | null>>>
+
+// Next Step and all three notes fields are 255 characters in Salesforce
+const TEXT_MAX = 255
 type SortDir = 'asc' | 'desc'
 
-const STAGE_ORDER = ['Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing', 'Closed Won', 'Closed Lost', 'Closed Lost - Churned', 'Closed - Recycle', 'Closed - Disqualified']
+export const STAGE_ORDER = ['Not Contacted', 'Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing', 'Closed Won', 'Closed Lost', 'Closed Lost - Churned', 'Closed - Recycle', 'Closed - Disqualified']
 
-const CLOSED_RENEWAL_STAGES = new Set(['Closed Won', 'Closed Lost - Churned'])
-const CLOSED_EXPANSION_STAGES = new Set(['Closed Won', 'Closed Lost'])
+export const CLOSED_RENEWAL_STAGES = new Set(['Closed Won', 'Closed Lost - Churned'])
+export const CLOSED_EXPANSION_STAGES = new Set(['Closed Won', 'Closed Lost'])
 
-const TH: React.CSSProperties = {
+export const TH: React.CSSProperties = {
   padding: '10px 14px',
   textAlign: 'left',
   color: 'var(--fg-3)',
@@ -35,7 +54,7 @@ const TH: React.CSSProperties = {
   background: 'var(--bg-subtle)',
 }
 
-const TD: React.CSSProperties = {
+export const TD: React.CSSProperties = {
   padding: '11px 14px',
   verticalAlign: 'top',
   borderBottom: '1px solid var(--border-subtle)',
@@ -43,7 +62,7 @@ const TD: React.CSSProperties = {
   background: 'var(--bg)',
 }
 
-const STICKY_TH: React.CSSProperties = {
+export const STICKY_TH: React.CSSProperties = {
   ...TH,
   position: 'sticky',
   left: 0,
@@ -51,7 +70,7 @@ const STICKY_TH: React.CSSProperties = {
   boxShadow: '2px 0 4px rgba(0,0,0,0.06)',
 }
 
-const STICKY_TD: React.CSSProperties = {
+export const STICKY_TD: React.CSSProperties = {
   ...TD,
   position: 'sticky',
   left: 0,
@@ -59,8 +78,8 @@ const STICKY_TD: React.CSSProperties = {
   boxShadow: '2px 0 4px rgba(0,0,0,0.06)',
 }
 
-const AMT_TH: React.CSSProperties = { ...TH, textAlign: 'right' }
-const AMT_TD: React.CSSProperties = { ...TD, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
+export const AMT_TH: React.CSSProperties = { ...TH, textAlign: 'right' }
+export const AMT_TD: React.CSSProperties = { ...TD, textAlign: 'right', fontVariantNumeric: 'tabular-nums', fontWeight: 600 }
 
 const TYPE_COLORS: Record<string, { bg: string; color: string }> = {
   'Cross Sell (New Students)':    { bg: 'var(--green-50)',       color: 'var(--green-700)' },
@@ -86,7 +105,7 @@ const STAGE_COLORS: Record<string, { bg: string; color: string }> = {
   'Closed - Recycle':      { bg: 'var(--bg-subtle)',          color: 'var(--fg-3)' },
 }
 
-function TypeCell({ value }: { value: string | null | undefined }) {
+export function TypeCell({ value }: { value: string | null | undefined }) {
   if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
   const { bg, color } = TYPE_COLORS[value] ?? { bg: 'var(--bg-subtle)', color: 'var(--fg-2)' }
   return (
@@ -96,7 +115,7 @@ function TypeCell({ value }: { value: string | null | undefined }) {
   )
 }
 
-function StageCell({ stage }: { stage: string }) {
+export function StageCell({ stage }: { stage: string }) {
   const { bg, color } = STAGE_COLORS[stage] ?? { bg: 'var(--bg-subtle)', color: 'var(--fg-2)' }
   return (
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: bg, color, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -105,7 +124,7 @@ function StageCell({ stage }: { stage: string }) {
   )
 }
 
-function PipelineBadge({ kind }: { kind: 'renewal' | 'expansion' }) {
+export function PipelineBadge({ kind }: { kind: 'renewal' | 'expansion' }) {
   const isRenewal = kind === 'renewal'
   return (
     <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: isRenewal ? 'var(--blue-50)' : 'var(--green-50)', color: isRenewal ? 'var(--navy-900)' : 'var(--green-700)', fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>
@@ -114,7 +133,7 @@ function PipelineBadge({ kind }: { kind: 'renewal' | 'expansion' }) {
   )
 }
 
-function LongTextCell({ value }: { value: string | null | undefined }) {
+export function LongTextCell({ value }: { value: string | null | undefined }) {
   if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
   return (
     <span style={{ color: 'var(--fg-2)', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
@@ -123,7 +142,7 @@ function LongTextCell({ value }: { value: string | null | undefined }) {
   )
 }
 
-function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
+export function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
   value: number | null | undefined
   code: string
   nzdValue?: number | null
@@ -145,24 +164,41 @@ function CurrencyPairCell({ value, code, nzdValue, signed = false }: {
   )
 }
 
-function BoolCell({ value }: { value: boolean | null | undefined }) {
-  if (value == null) return <span style={{ color: 'var(--fg-3)' }}>—</span>
-  return (
-    <span style={{
-      display: 'inline-block', padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
-      background: value ? 'var(--red-50)' : 'var(--bg-subtle)',
-      color: value ? 'var(--red-700)' : 'var(--fg-3)',
-    }}>
-      {value ? 'Yes' : 'No'}
-    </span>
-  )
-}
-
 function SortIcon({ col, sortCol, sortDir }: { col: SortCol; sortCol: SortCol | null; sortDir: SortDir }) {
   const active = sortCol === col
   return (
     <span style={{ marginLeft: 4, fontSize: 10, color: active ? 'var(--fg-1)' : 'var(--fg-3)', flexShrink: 0 }}>
       {active ? (sortDir === 'desc' ? '↓' : '↑') : '↕'}
+    </span>
+  )
+}
+
+function OutcomeCell({ value }: { value: string | null | undefined }) {
+  if (!value) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  const { label, bg, fg } = outcomePill(value)
+  return (
+    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 4, background: bg, color: fg, fontWeight: 600, fontSize: 11, whiteSpace: 'nowrap' }}>
+      {label}
+    </span>
+  )
+}
+
+function DateText({ date }: { date: string | null | undefined }) {
+  if (!date) return <span style={{ color: 'var(--fg-3)' }}>—</span>
+  return <span style={{ color: 'var(--fg-2)', whiteSpace: 'nowrap' }}>{shortDate(date)}</span>
+}
+
+function daysSince(date: string): number {
+  return Math.floor((Date.now() - new Date(date + 'T00:00:00').getTime()) / 86_400_000)
+}
+
+// Last activity on the opp. Amber when nothing logged in the last 14 days.
+function TouchedText({ date }: { date: string | null | undefined }) {
+  if (!date) return <span style={{ color: '#B35C00', fontWeight: 600 }}>Never</span>
+  const stale = daysSince(date) > 14
+  return (
+    <span style={{ whiteSpace: 'nowrap', color: stale ? '#B35C00' : 'var(--fg-2)', fontWeight: stale ? 600 : 400 }}>
+      {shortDate(date)}
     </span>
   )
 }
@@ -178,18 +214,55 @@ function getRowSortVal(row: Row, col: SortCol): number {
   switch (col) {
     case 'flags':         return row.kind === 'renewal' ? getRenewalFlags(opp as SFRenewalOpp).length : getExpansionFlags(opp as SFExpansionOpp).length
     case 'stage': { const i = STAGE_ORDER.indexOf(opp.StageName); return i === -1 ? STAGE_ORDER.length : i }
-    case 'arr_basis':            return opp.ARR_Basis_NZD__c ?? opp.ARR_Basis__c ?? 0
-    case 'auto_renewal':         return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Amount_NZD__c ?? (opp as SFRenewalOpp).Auto_Renewal_Amount__c ?? 0) : 0
-    case 'auto_renewal_net_arr': return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Net_ARR_NZD__c ?? (opp as SFRenewalOpp).Auto_Renewal_Net_ARR__c ?? 0) : 0
-    case 'booked_arr':           return opp.Booked_ARR_NZD__c ?? opp.Booked_ARR__c ?? 0
-    case 'net_arr':              return opp.Net_ARR_NZD__c ?? opp.Net_ARR__c ?? 0
-    case 'close_date':           return d(opp.CloseDate)
+    case 'arr_basis':     return opp.ARR_Basis_NZD__c ?? opp.ARR_Basis__c ?? 0
+    case 'auto_renewal':  return row.kind === 'renewal' ? ((opp as SFRenewalOpp).Auto_Renewal_Amount_NZD__c ?? (opp as SFRenewalOpp).Auto_Renewal_Amount__c ?? 0) : 0
+    case 'net_arr':       return opp.Net_ARR_NZD__c ?? opp.Net_ARR__c ?? 0
+    case 'close_date':    return d(opp.CloseDate)
+    case 'last_meeting':  return d(opp.Last_Meeting_Date__c)
+    case 'next_meeting':  return d(opp.Next_Meeting_Date__c)
+    case 'last_touched':  return d(opp.LastActivityDate)
   }
 }
 
-export default function AllDealsTable({ renewals, expansions }: Props) {
+const SPIN_KEYFRAMES = '@keyframes sql-handoff-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }'
+
+const STICKY_RIGHT_TH: React.CSSProperties = { ...TH, position: 'sticky', right: 0, zIndex: 2, boxShadow: '-2px 0 4px rgba(0,0,0,0.06)' }
+const STICKY_RIGHT_TD: React.CSSProperties = { ...TD, position: 'sticky', right: 0, zIndex: 1, boxShadow: '-2px 0 4px rgba(0,0,0,0.06)' }
+
+const ROW_BTN: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+  padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', whiteSpace: 'nowrap',
+}
+
+function draftFrom(opp: SFRenewalOpp | SFExpansionOpp): Draft {
+  return {
+    StageName: opp.StageName ?? '',
+    Type: opp.Type ?? '',
+    Category__c: opp.Category__c ?? '',
+    CloseDate: opp.CloseDate ?? '',
+    NextStep: opp.NextStep ?? '',
+    Expansion_Notes__c: opp.Expansion_Notes__c ?? '',
+    Renewal_Risk_Notes__c: opp.Renewal_Risk_Notes__c ?? '',
+    Manager_Review_Notes__c: opp.Manager_Review_Notes__c ?? '',
+    Initial_Meeting_Outcome__c: opp.Initial_Meeting_Outcome__c ?? '',
+  }
+}
+
+export default function AllDealsTable({ renewals, expansions, picklists = null }: Props) {
   const [sortCol, setSortCol] = useState<SortCol | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>('desc')
+  // Edits saved to Salesforce this session, layered over the server data until the next reload
+  const [overrides, setOverrides] = useState<Overrides>({})
+  // The one row being edited, with its unsaved values
+  const [editing, setEditing] = useState<{ id: string; original: Draft; draft: Draft } | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<{ message: string; error: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), toast.error ? 8000 : 3000)
+    return () => clearTimeout(t)
+  }, [toast])
 
   function toggleSort(col: SortCol) {
     setSortCol(prev => {
@@ -199,9 +272,46 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
     })
   }
 
+  function startEdit(opp: SFRenewalOpp | SFExpansionOpp) {
+    const d = draftFrom(opp)
+    setEditing({ id: opp.Id, original: d, draft: d })
+  }
+
+  function setDraft(field: EditField, value: string) {
+    setEditing(prev => prev && { ...prev, draft: { ...prev.draft, [field]: value } })
+  }
+
+  async function saveRow() {
+    if (!editing || saving) return
+    const changed = EDIT_FIELDS.filter(f => editing.draft[f] !== editing.original[f])
+    if (changed.length === 0) { setEditing(null); return }
+    const fields = Object.fromEntries(changed.map(f => [f, editing.draft[f]]))
+    setSaving(true)
+    try {
+      const res = await fetch('/api/cs-pipeline/inline-edit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunityId: editing.id, fields }),
+      })
+      const data = await res.json().catch(() => ({})) as { error?: string }
+      if (!res.ok) {
+        setToast({ message: `Not saved: ${data.error ?? `Salesforce returned ${res.status}`}`, error: true })
+        return
+      }
+      const patch = Object.fromEntries(changed.map(f => [f, editing.draft[f] === '' ? null : editing.draft[f]]))
+      setOverrides(prev => ({ ...prev, [editing.id]: { ...prev[editing.id], ...patch } }))
+      setEditing(null)
+      setToast({ message: 'Saved to Salesforce', error: false })
+    } catch (err) {
+      setToast({ message: `Not saved: ${err instanceof Error ? err.message : 'network error'}`, error: true })
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const baseRows: Row[] = [
-    ...renewals.map(opp => ({ kind: 'renewal' as const, opp, sortKey: opp.CloseDate })),
-    ...expansions.map(opp => ({ kind: 'expansion' as const, opp, sortKey: opp.CloseDate })),
+    ...renewals.map(o => ({ ...o, ...overrides[o.Id] }) as SFRenewalOpp).map(opp => ({ kind: 'renewal' as const, opp, sortKey: opp.CloseDate })),
+    ...expansions.map(o => ({ ...o, ...overrides[o.Id] }) as SFExpansionOpp).map(opp => ({ kind: 'expansion' as const, opp, sortKey: opp.CloseDate })),
   ].sort((a, b) => a.sortKey.localeCompare(b.sortKey))
 
   const rows = sortCol === null ? baseRows : [...baseRows].sort((a, b) => {
@@ -219,108 +329,158 @@ export default function AllDealsTable({ renewals, expansions }: Props) {
     )
   }
 
+  function sortTh(col: SortCol, label: string, width: number, amount = false) {
+    return (
+      <th onClick={() => toggleSort(col)} style={{ ...(amount ? AMT_TH : TH), width, cursor: 'pointer', userSelect: 'none' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: amount ? 'flex-end' : undefined }}>
+          {label}<SortIcon col={col} {...sortProps} />
+        </span>
+      </th>
+    )
+  }
+
+  const fieldStyle = { ...EDIT_FIELD, opacity: saving ? 0.6 : 1 }
+
+  // Dropdown in edit mode. Falls back to the read-only display if this record type's values didn't load.
+  function picklistEditor(row: Row, field: 'StageName' | 'Type' | 'Category__c' | 'Initial_Meeting_Outcome__c', display: React.ReactNode) {
+    const options = picklists?.[row.kind]?.[field]
+    if (!editing || !options || options.length === 0) return display
+    const current = editing.original[field]
+    // Keep the current value selectable even if it's no longer an active picklist value
+    const all = current && !options.includes(current) ? [current, ...options] : options
+    return (
+      <select value={editing.draft[field]} onChange={e => setDraft(field, e.target.value)} disabled={saving} style={fieldStyle}>
+        {(field !== 'StageName' || !current) && <option value="">—</option>}
+        {all.map(o => <option key={o} value={o}>{o}</option>)}
+      </select>
+    )
+  }
+
+  function textEditor(field: TextField) {
+    if (!editing) return null
+    const v = editing.draft[field]
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <textarea
+          value={v} onChange={e => setDraft(field, e.target.value)} disabled={saving}
+          maxLength={TEXT_MAX} rows={4} style={{ ...EDIT_TEXTAREA, opacity: saving ? 0.6 : 1 }}
+        />
+        <span style={{ fontSize: 11, color: v.length >= TEXT_MAX ? 'var(--red-700)' : 'var(--fg-3)', alignSelf: 'flex-end' }}>
+          {v.length}/{TEXT_MAX}
+        </span>
+      </div>
+    )
+  }
+
   return (
     <div style={{ overflowX: 'auto', position: 'relative' }}>
-      <table style={{ width: '100%', minWidth: 3370, borderCollapse: 'separate', borderSpacing: 0 }}>
+      <style>{SPIN_KEYFRAMES}</style>
+      <table style={{ width: '100%', minWidth: 3510, borderCollapse: 'separate', borderSpacing: 0 }}>
         <thead>
           <tr>
-            <th style={{ ...STICKY_TH, width: 280 }}>Opportunity</th>
-            <th onClick={() => toggleSort('flags')} style={{ ...TH, width: 80, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Flags<SortIcon col="flags" {...sortProps} /></span>
-            </th>
-            <th style={{ ...TH, width: 100 }}>Pipeline</th>
+            <th style={{ ...STICKY_TH, width: 380 }}>Opportunity</th>
+            {sortTh('flags', 'Flags', 80)}
             <th style={{ ...TH, width: 130 }}>Owner</th>
-            <th onClick={() => toggleSort('close_date')} style={{ ...TH, width: 100, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Close Date<SortIcon col="close_date" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('stage')} style={{ ...TH, width: 140, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>Stage<SortIcon col="stage" {...sortProps} /></span>
-            </th>
-            <th style={{ ...TH, width: 140 }}>Type</th>
-            <th style={{ ...TH, width: 140 }}>Category</th>
-            <th style={{ ...TH, width: 110, textAlign: 'center' }}>Do Not Auto Renew</th>
-            <th style={{ ...TH, width: 300 }}>Pricebook</th>
-            <th onClick={() => toggleSort('arr_basis')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>ARR Basis<SortIcon col="arr_basis" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('auto_renewal')} style={{ ...AMT_TH, width: 150, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Auto Renewal Amount<SortIcon col="auto_renewal" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('auto_renewal_net_arr')} style={{ ...AMT_TH, width: 130, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Auto Renewal Net ARR<SortIcon col="auto_renewal_net_arr" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('booked_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp ARR<SortIcon col="booked_arr" {...sortProps} /></span>
-            </th>
-            <th onClick={() => toggleSort('net_arr')} style={{ ...AMT_TH, width: 120, cursor: 'pointer', userSelect: 'none' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end' }}>Opp Net ARR<SortIcon col="net_arr" {...sortProps} /></span>
-            </th>
-            <th style={{ ...TH, width: 360 }}>Next Step</th>
-            <th style={{ ...TH, width: 360 }}>Renewal Risk Notes</th>
-            <th style={{ ...TH, width: 360 }}>Expansion Notes</th>
+            <th style={{ ...TH, width: 100 }}>Record Type</th>
+            <th style={{ ...TH, width: 190 }}>Type</th>
+            <th style={{ ...TH, width: 150 }}>Category</th>
+            {sortTh('stage', 'Stage', 160)}
+            {sortTh('close_date', 'Close Date', 150)}
+            {sortTh('net_arr', 'Opp Net ARR', 120, true)}
+            <th style={{ ...TH, width: 170 }}>Initial Meeting Outcome</th>
+            {sortTh('last_meeting', 'Last Meeting', 110)}
+            {sortTh('next_meeting', 'Next Meeting', 110)}
+            {sortTh('last_touched', 'Last Touched', 110)}
+            <th style={{ ...TH, width: 300 }}>Next Step</th>
+            <th style={{ ...TH, width: 300 }}>Expansion Notes</th>
+            <th style={{ ...TH, width: 300 }}>Renewal Risk Notes</th>
+            <th style={{ ...TH, width: 300 }}>Manager Review Notes</th>
+            {sortTh('arr_basis', 'ARR Basis', 120, true)}
+            {sortTh('auto_renewal', 'Auto Renewal Amount', 150, true)}
+            <th style={{ ...STICKY_RIGHT_TH, width: 90 }} />
           </tr>
         </thead>
         <tbody>
           {rows.map(row => {
-            if (row.kind === 'renewal') {
-              const opp = row.opp
-              const isClosed = CLOSED_RENEWAL_STAGES.has(opp.StageName)
-              const code = opp.CurrencyIsoCode ?? 'AUD'
-              return (
-                <tr key={`r_${opp.Id}`}>
-                  <td style={{ ...STICKY_TD, width: 280 }}>
-                    <SalesforceLink label={opp.Name} opportunityId={opp.Id} />
-                  </td>
-                  <td style={{ ...TD, width: 80 }}><FlagsCell flags={getRenewalFlags(opp)} /></td>
-                  <td style={{ ...TD, width: 100 }}><PipelineBadge kind="renewal" /></td>
-                  <td style={{ ...TD, width: 130, color: 'var(--fg-2)' }}>{opp['Owner.Name']}</td>
-                  <td style={{ ...TD, width: 100 }}><DatePill date={opp.CloseDate} noWarning={isClosed} /></td>
-                  <td style={{ ...TD, width: 140 }}><StageCell stage={opp.StageName} /></td>
-                  <td style={{ ...TD, width: 140 }}><TypeCell value={opp.Type} /></td>
-                  <td style={{ ...TD, width: 140, color: 'var(--fg-3)' }}>—</td>
-                  <td style={{ ...TD, width: 110, textAlign: 'center' }}><BoolCell value={opp.Do_Not_Auto_Renew__c} /></td>
-                  <td style={{ ...TD, width: 300, color: 'var(--fg-2)', fontSize: 13 }}>{opp['Pricebook2.Name'] ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
-                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} /></td>
-                  <td style={{ ...AMT_TD, width: 150 }}><CurrencyPairCell value={opp.Auto_Renewal_Amount__c} code={code} nzdValue={opp.Auto_Renewal_Amount_NZD__c} /></td>
-                  <td style={{ ...AMT_TD, width: 130 }}><CurrencyPairCell value={opp.Auto_Renewal_Net_ARR__c} code={code} nzdValue={opp.Auto_Renewal_Net_ARR_NZD__c} signed /></td>
-                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Booked_ARR__c} code={code} nzdValue={opp.Booked_ARR_NZD__c} /></td>
-                  <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Net_ARR__c} code={code} nzdValue={opp.Net_ARR_NZD__c} signed /></td>
-                  <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.NextStep} /></td>
-                  <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.Renewal_Risk_Notes__c} /></td>
-                  <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.Expansion_Notes__c} /></td>
-                </tr>
-              )
-            }
-
             const opp = row.opp
-            const isClosed = CLOSED_EXPANSION_STAGES.has(opp.StageName)
+            const isRenewal = row.kind === 'renewal'
+            const isEditing = editing?.id === opp.Id
+            const isClosed = (isRenewal ? CLOSED_RENEWAL_STAGES : CLOSED_EXPANSION_STAGES).has(opp.StageName)
+            const code = opp.CurrencyIsoCode ?? 'AUD'
+            const flags = row.kind === 'renewal' ? getRenewalFlags(row.opp) : getExpansionFlags(row.opp)
+            const bg = isEditing ? 'var(--blue-50)' : undefined
+            const td = (style: React.CSSProperties, width: number): React.CSSProperties => ({ ...style, width, ...(bg && { background: bg }) })
             return (
-              <tr key={`e_${opp.Id}`}>
-                <td style={{ ...STICKY_TD, width: 280 }}>
+              <tr key={`${isRenewal ? 'r' : 'e'}_${opp.Id}`}>
+                <td style={td(STICKY_TD, 380)}>
                   <SalesforceLink label={opp.Name} opportunityId={opp.Id} />
                 </td>
-                <td style={{ ...TD, width: 80 }}><FlagsCell flags={getExpansionFlags(opp)} /></td>
-                <td style={{ ...TD, width: 100 }}><PipelineBadge kind="expansion" /></td>
-                <td style={{ ...TD, width: 130, color: 'var(--fg-2)' }}>{opp['Owner.Name']}</td>
-                <td style={{ ...TD, width: 100 }}><DatePill date={opp.CloseDate} noWarning={isClosed} /></td>
-                <td style={{ ...TD, width: 140 }}><StageCell stage={opp.StageName} /></td>
-                <td style={{ ...TD, width: 140 }}><TypeCell value={opp.Type} /></td>
-                <td style={{ ...TD, width: 140, color: 'var(--fg-2)', fontSize: 13 }}>{opp.Category__c ?? '—'}</td>
-                <td style={{ ...TD, width: 110, textAlign: 'center' }}><BoolCell value={opp.Do_Not_Auto_Renew__c} /></td>
-                <td style={{ ...TD, width: 300, color: 'var(--fg-2)', fontSize: 13 }}>{opp['Pricebook2.Name'] ?? <span style={{ color: 'var(--fg-3)' }}>—</span>}</td>
-                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.ARR_Basis__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.ARR_Basis_NZD__c} /></td>
-                <td style={{ ...AMT_TD, width: 150, color: 'var(--fg-3)' }}>—</td>
-                <td style={{ ...AMT_TD, width: 130, color: 'var(--fg-3)' }}>—</td>
-                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Booked_ARR__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.Booked_ARR_NZD__c} /></td>
-                <td style={{ ...AMT_TD, width: 120 }}><CurrencyPairCell value={opp.Net_ARR__c} code={opp.CurrencyIsoCode ?? 'AUD'} nzdValue={opp.Net_ARR_NZD__c} signed /></td>
-                <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.NextStep} /></td>
-                <td style={{ ...TD, width: 360 }}><span style={{ color: 'var(--fg-3)' }}>—</span></td>
-                <td style={{ ...TD, width: 360 }}><LongTextCell value={opp.Expansion_Notes__c} /></td>
+                <td style={td(TD, 80)}><FlagsCell flags={flags} /></td>
+                <td style={{ ...td(TD, 130), color: 'var(--fg-2)' }}>{opp['Owner.Name']}</td>
+                <td style={td(TD, 100)}><PipelineBadge kind={row.kind} /></td>
+                <td style={td(TD, 190)}>{isEditing ? picklistEditor(row, 'Type', <TypeCell value={opp.Type} />) : <TypeCell value={opp.Type} />}</td>
+                <td style={td(TD, 150)}>
+                  {(() => {
+                    const display = <span style={{ color: opp.Category__c ? 'var(--fg-2)' : 'var(--fg-3)', fontSize: 13 }}>{opp.Category__c ?? '—'}</span>
+                    return isEditing ? picklistEditor(row, 'Category__c', display) : display
+                  })()}
+                </td>
+                <td style={td(TD, 160)}>{isEditing ? picklistEditor(row, 'StageName', <StageCell stage={opp.StageName} />) : <StageCell stage={opp.StageName} />}</td>
+                <td style={td(TD, 150)}>
+                  {isEditing && editing
+                    ? <input type="date" value={editing.draft.CloseDate} onChange={e => setDraft('CloseDate', e.target.value)} disabled={saving} style={fieldStyle} />
+                    : <DatePill date={opp.CloseDate} noWarning={isClosed} />}
+                </td>
+                <td style={td(AMT_TD, 120)}><CurrencyPairCell value={opp.Net_ARR__c} code={code} nzdValue={opp.Net_ARR_NZD__c} signed /></td>
+                <td style={td(TD, 170)}>
+                  {isEditing
+                    ? picklistEditor(row, 'Initial_Meeting_Outcome__c', <OutcomeCell value={opp.Initial_Meeting_Outcome__c} />)
+                    : <OutcomeCell value={opp.Initial_Meeting_Outcome__c} />}
+                </td>
+                <td style={td(TD, 110)}><DateText date={opp.Last_Meeting_Date__c} /></td>
+                <td style={td(TD, 110)}><DateText date={opp.Next_Meeting_Date__c} /></td>
+                <td style={td(TD, 110)}><TouchedText date={opp.LastActivityDate} /></td>
+                <td style={td(TD, 300)}>{isEditing ? textEditor('NextStep') : <LongTextCell value={opp.NextStep} />}</td>
+                <td style={td(TD, 300)}>{isEditing ? textEditor('Expansion_Notes__c') : <LongTextCell value={opp.Expansion_Notes__c} />}</td>
+                <td style={td(TD, 300)}>{isEditing ? textEditor('Renewal_Risk_Notes__c') : <LongTextCell value={opp.Renewal_Risk_Notes__c} />}</td>
+                <td style={td(TD, 300)}>{isEditing ? textEditor('Manager_Review_Notes__c') : <LongTextCell value={opp.Manager_Review_Notes__c} />}</td>
+                <td style={td(AMT_TD, 120)}><CurrencyPairCell value={opp.ARR_Basis__c} code={code} nzdValue={opp.ARR_Basis_NZD__c} /></td>
+                <td style={td(AMT_TD, 150)}>
+                  {row.kind === 'renewal'
+                    ? <CurrencyPairCell value={row.opp.Auto_Renewal_Amount__c} code={code} nzdValue={row.opp.Auto_Renewal_Amount_NZD__c} />
+                    : <span style={{ color: 'var(--fg-3)' }}>—</span>}
+                </td>
+                <td style={td(STICKY_RIGHT_TD, 90)}>
+                  {isEditing ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      <button
+                        onClick={saveRow} disabled={saving} title="Save changes to Salesforce"
+                        style={{ ...ROW_BTN, border: '1px solid var(--navy-900)', background: 'var(--navy-900)', color: '#fff', cursor: saving ? 'default' : 'pointer' }}
+                      >
+                        {saving ? <><SpinnerIcon /> Saving</> : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => setEditing(null)} disabled={saving}
+                        style={{ ...ROW_BTN, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg-2)', cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.5 : 1 }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => startEdit(opp)} disabled={saving} title="Edit this deal"
+                      style={{ ...ROW_BTN, border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--fg-2)', cursor: saving ? 'default' : 'pointer' }}
+                    >
+                      <PencilIcon /> Edit
+                    </button>
+                  )}
+                </td>
               </tr>
             )
           })}
         </tbody>
       </table>
+      {toast && <Toast message={toast.message} />}
     </div>
   )
 }

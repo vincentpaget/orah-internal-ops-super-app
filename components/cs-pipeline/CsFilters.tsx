@@ -30,6 +30,7 @@ interface Props {
 }
 
 const DATE_PRESETS = [
+  { value: 'all_dates',     label: 'All dates' },
   { value: 'past_due',      label: 'Past due' },
   { value: 'next_7_days',   label: 'Next 7 days' },
   { value: 'next_14_days',  label: 'Next 14 days' },
@@ -322,7 +323,7 @@ export default function CsFilters({
   }
 
   const hasFilters = activeOwner
-    || activeDatePreset
+    || (activeDatePreset && activeDatePreset !== 'all_dates')
     || (showType && activeTypes.length > 0)
     || (showRecordType && !lockedRecordType && activeRecordType)
     || (showRevOpsFilters && activeStages.length > 0)

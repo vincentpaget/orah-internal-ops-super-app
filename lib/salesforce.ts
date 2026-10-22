@@ -116,6 +116,7 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
       Expansion_Status__c,
       Expansion_Notes__c,
       Renewal_Risk_Notes__c,
+      Manager_Review_Notes__c,
       Do_Not_Auto_Renew__c,
       Notice_Period_Waived__c,
       Churn_Reason_External__c,
@@ -126,13 +127,17 @@ export async function fetchRenewals(year: string): Promise<SFRenewalOpp[]> {
       ARR_Basis_NZD__c,
       Auto_Renewal_Amount_NZD__c,
       Auto_Renewal_Net_ARR__c,
-      Auto_Renewal_Net_ARR_NZD__c
+      Auto_Renewal_Net_ARR_NZD__c,
+      Category__c,
+      Initial_Meeting_Outcome__c,
+      Last_Meeting_Date__c,
+      Next_Meeting_Date__c,
+      LastActivityDate
     FROM Opportunity
     WHERE RecordTypeId = '0127F000001JcfYQAS'
       AND AccountId != '0017F00000XJtiAQAT'
       AND StageName != 'Closed - Duplicated'
-      AND CloseDate >= ${year}-01-01
-      AND CloseDate <= ${year}-12-31
+      AND (IsClosed = false OR (CloseDate >= ${year}-01-01 AND CloseDate <= ${year}-12-31))
     ORDER BY CloseDate ASC
   `
   const result = await conn.query<Record<string, unknown>>(soql)
@@ -157,18 +162,23 @@ export async function fetchExpansions(year: string): Promise<SFExpansionOpp[]> {
       Net_ARR__c,
       Category__c,
       Expansion_Notes__c,
+      Renewal_Risk_Notes__c,
+      Manager_Review_Notes__c,
       Do_Not_Auto_Renew__c,
       CurrencyIsoCode,
       Booked_ARR__c,
       Net_ARR_NZD__c,
       Booked_ARR_NZD__c,
-      ARR_Basis_NZD__c
+      ARR_Basis_NZD__c,
+      Initial_Meeting_Outcome__c,
+      Last_Meeting_Date__c,
+      Next_Meeting_Date__c,
+      LastActivityDate
     FROM Opportunity
     WHERE RecordTypeId = '0127F000000fGpGQAU'
       AND AccountId != '0017F00000XJtiAQAT'
       AND StageName != 'Closed - Duplicated'
-      AND CloseDate >= ${year}-01-01
-      AND CloseDate <= ${year}-12-31
+      AND (IsClosed = false OR (CloseDate >= ${year}-01-01 AND CloseDate <= ${year}-12-31))
     ORDER BY CloseDate ASC
   `
   const result = await conn.query<Record<string, unknown>>(soql)
@@ -179,4 +189,47 @@ export async function fetchExpansions(year: string): Promise<SFExpansionOpp[]> {
     allRecords.push(...next.records)
   }
   return allRecords.map(mapExpansionRecord)
+}
+
+// ── CS Pipeline inline edit ──────────────────────────────────────────────────
+
+const CS_RECORD_TYPES = { renewal: '0127F000001JcfYQAS', expansion: '0127F000000fGpGQAU' } as const
+
+export interface CsPicklists {
+  StageName: string[]
+  Type: string[]
+  Category__c: string[]
+  Initial_Meeting_Outcome__c: string[]
+}
+
+let _picklistCache: { at: number; value: Record<'renewal' | 'expansion', CsPicklists> } | null = null
+
+/** Stage, Type and Category values allowed on each CS record type. Cached for an hour. */
+export async function fetchCsPicklists(): Promise<Record<'renewal' | 'expansion', CsPicklists>> {
+  if (_picklistCache && Date.now() - _picklistCache.at < 60 * 60 * 1000) return _picklistCache.value
+  const conn = await getConn()
+  const out = {} as Record<'renewal' | 'expansion', CsPicklists>
+  for (const kind of ['renewal', 'expansion'] as const) {
+    const res = await conn.request<{ picklistFieldValues: Record<string, { values: { value: string }[] }> }>(
+      `/services/data/v${conn.version}/ui-api/object-info/Opportunity/picklist-values/${CS_RECORD_TYPES[kind]}`
+    )
+    const vals = (f: string) => (res.picklistFieldValues[f]?.values ?? []).map(v => v.value)
+    out[kind] = {
+      StageName: vals('StageName').filter(v => v !== 'Closed - Duplicated'),
+      Type: vals('Type'),
+      Category__c: vals('Category__c'),
+      Initial_Meeting_Outcome__c: vals('Initial_Meeting_Outcome__c'),
+    }
+  }
+  _picklistCache = { at: Date.now(), value: out }
+  return out
+}
+
+export async function updateOpportunity(id: string, fields: Record<string, unknown>): Promise<void> {
+  const conn = await getConn()
+  const res = await conn.sobject('Opportunity').update({ Id: id, ...fields })
+  if (!res.success) {
+    const errors = (res as { errors?: { message?: string }[] }).errors ?? []
+    throw new Error(errors.map(e => e.message).filter(Boolean).join('; ') || 'Salesforce rejected the update')
+  }
 }

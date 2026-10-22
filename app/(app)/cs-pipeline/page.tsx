@@ -3,6 +3,7 @@ import { getPeriodRange } from '@/lib/pipeline'
 import { getRenewalFlags } from '@/lib/csHygiene'
 import CsPipelineShell from '@/components/cs-pipeline/CsPipelineShell'
 import type { SFRenewalOpp, SFExpansionOpp } from '@/lib/types'
+import type { CsPicklists } from '@/lib/salesforce'
 
 interface Props {
   searchParams: Promise<{
@@ -25,7 +26,7 @@ interface Props {
 
 const EXCLUDED_ACCOUNT = '0017F00000XJtiAQAT'
 
-const OPEN_RENEWAL_STAGES  = new Set(['Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
+const OPEN_RENEWAL_STAGES  = new Set(['Not Contacted', 'Pending', 'Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 const OPEN_EXPANSION_STAGES = new Set(['Qualifying', 'Evaluation', 'Proposal', 'Negotiation', 'Closing'])
 const ACTIVE_PB_NAMES       = new Set(['2026 Q1 - Boarding Platform', '2026 Q1 - Supervise Platform'])
 
@@ -40,13 +41,14 @@ export default async function CsPipelinePage({ searchParams }: Props) {
   const isRevOpsView = view === 'revops'
   const isClosingSoonView = view === 'closing-soon'
   const isRenewalsDueSoonView = view === 'renewal-due-soon'
-  const isRenewalsView = !['expansions', 'all', 'hygiene', 'revops', 'closing-soon', 'renewal-due-soon'].includes(view)
+  const isRenewalsView = !['expansions', 'all', 'simplified', 'hygiene', 'revops', 'closing-soon', 'renewal-due-soon'].includes(view)
   const isExpansionsView = view === 'expansions'
-  const isAllView = ['all', 'hygiene', 'revops'].includes(view)
+  const isAllView = ['all', 'simplified', 'hygiene', 'revops'].includes(view)
 
   let sfError: string | null = null
   let renewalOpps: SFRenewalOpp[] = MOCK_RENEWALS
   let expansionOpps: SFExpansionOpp[] = MOCK_EXPANSIONS
+  let picklists: Record<'renewal' | 'expansion', CsPicklists> | null = null
 
   if (process.env.SF_USERNAME || process.env.SF_ACCESS_TOKEN) {
     try {
@@ -60,22 +62,33 @@ export default async function CsPipelinePage({ searchParams }: Props) {
     } catch (err) {
       sfError = err instanceof Error ? err.message : 'Unknown Salesforce error'
     }
+    // Dropdown options for inline editing in All Deals. Without them, those cells stay read-only.
+    if (!sfError && isAllView) {
+      try {
+        const { fetchCsPicklists } = await import('@/lib/salesforce')
+        picklists = await fetchCsPicklists()
+      } catch { picklists = null }
+    }
   }
 
   // Always exclude internal account
   renewalOpps   = renewalOpps.filter(o => o.AccountId !== EXCLUDED_ACCOUNT)
   expansionOpps = expansionOpps.filter(o => o.AccountId !== EXCLUDED_ACCOUNT)
 
-  const activeDatePreset = datePreset ?? 'next_90_days'
+  const activeDatePreset = datePreset ?? 'all_dates'
 
   // Resolve date range from preset or custom (not used for hygiene)
   let resolvedFrom: string | null = null
   let resolvedTo:   string | null = null
-  if (activeDatePreset && activeDatePreset !== 'custom') {
+  if (activeDatePreset === 'all_dates') {
+    // No date bounds — open opps only (closed ones are dropped below)
+  } else if (activeDatePreset !== 'custom') {
     const range = getPeriodRange(activeDatePreset)
-    resolvedFrom = range.start
+    // Past due / next N days have no lower bound so overdue opps from prior years still show
+    const openEnded = activeDatePreset === 'past_due' || (activeDatePreset.startsWith('next_') && activeDatePreset !== 'next_quarter')
+    resolvedFrom = openEnded ? null : range.start
     resolvedTo   = range.end
-  } else if (activeDatePreset === 'custom') {
+  } else {
     resolvedFrom = rawFrom ?? null
     resolvedTo   = rawTo   ?? null
   }
@@ -113,6 +126,13 @@ export default async function CsPipelinePage({ searchParams }: Props) {
       renewalOpps   = renewalOpps.filter(o => o.CloseDate <= resolvedTo!)
       expansionOpps = expansionOpps.filter(o => o.CloseDate <= resolvedTo!)
     }
+  }
+
+  // "All dates" means the open pipeline only. Closed deals show up once a specific period is picked.
+  // Pipeline Hygiene ignores the date filter, so it keeps its closed deals.
+  if (activeDatePreset === 'all_dates' && !isHygieneView) {
+    renewalOpps   = renewalOpps.filter(o => !o.StageName.startsWith('Closed'))
+    expansionOpps = expansionOpps.filter(o => !o.StageName.startsWith('Closed'))
   }
 
   // Tile counts for Renewals Closing Soon — computed after owner+date, before type / tile filters
@@ -207,7 +227,9 @@ export default async function CsPipelinePage({ searchParams }: Props) {
           Pipeline Hygiene (EB)
         </h1>
         <p style={{ fontSize: 14, color: 'var(--fg-2)', marginTop: 6 }}>
-          Renewal and expansion pipeline for {year}. Click a stage to filter.
+          {activeDatePreset === 'all_dates'
+            ? 'Open renewal and expansion pipeline. Pick a close date period to include closed deals.'
+            : 'Renewal and expansion deals closing in the selected period, including closed deals.'} Click a stage to filter.
         </p>
       </div>
 
@@ -251,6 +273,7 @@ export default async function CsPipelinePage({ searchParams }: Props) {
         activeTile={tile ?? null}
         tileCounts={tileCounts}
         closingSoonBaseOpps={closingSoonBaseOpps}
+        picklists={picklists}
       />
     </div>
   )
