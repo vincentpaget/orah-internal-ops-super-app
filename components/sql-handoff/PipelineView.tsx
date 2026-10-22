@@ -38,6 +38,7 @@ interface Props {
   onSort: (k: string) => void
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
   onInlineSave: (card: EnrichedOpportunity, patch: { outcome: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
+  onMeddicc: (card: EnrichedOpportunity) => void
   onNurtureInlineSave: (card: EnrichedOpportunity, patch: { closeDate: string; reengage: string; nurtureReason: string; nextStep: string; managerReviewNotes: string }) => Promise<boolean>
 }
 
@@ -51,7 +52,7 @@ export default function PipelineView({
   ownerSel, onToggleOwner, onClearOwner, ownerOptions,
   rtypeSel, onToggleRtype, onClearRtype, rtypeOptions,
   creatorSel, onToggleCreator, onClearCreator, creatorOptions,
-  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave, onNurtureInlineSave,
+  warnSel, onToggleWarn, onClearWarn, tab, onTabChange, sortKey, sortDir, onSort, onAction, onInlineSave, onNurtureInlineSave, onMeddicc,
 }: Props) {
   const [warnFilterOpen, setWarnFilterOpen] = useState(false)
   const warningKeys = tab === 'nurture' ? NURTURE_WARNING_KEYS : PIPELINE_WARNING_KEYS
@@ -183,10 +184,10 @@ export default function PipelineView({
           {tab === 'nurture' ? (
             <NurturingTable
               rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort}
-              onInlineSave={onNurtureInlineSave} onAction={onAction}
+              onInlineSave={onNurtureInlineSave} onAction={onAction} onMeddicc={onMeddicc}
             />
           ) : (
-            <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} />
+            <PipelineTable tab={tab} rows={rowsForTab} sortKey={sortKey} sortDir={sortDir} onSort={onSort} onAction={onAction} onInlineSave={onInlineSave} onMeddicc={onMeddicc} />
           )}
         </div>
       </div>

@@ -169,4 +169,6 @@ export interface EnrichedOpportunity extends SFSqlHandoffOpportunity {
   warnList: WarningHit[]
   warnCount: number
   sfUrl: string
+  /** 0–100, same weighting as Salesforce's MEDDICC_Score__c */
+  meddiccScore: number
 }

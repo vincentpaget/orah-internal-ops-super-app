@@ -105,5 +105,10 @@ export async function fetchSqlDashboardHistory(quarterStart: string): Promise<SF
 
 export async function updateOpportunityFields(id: string, fields: Record<string, unknown>): Promise<void> {
   const conn = await getConn()
-  await conn.sobject('Opportunity').update({ Id: id, ...fields })
+  const res = await conn.sobject('Opportunity').update({ Id: id, ...fields })
+  // jsforce resolves (rather than throws) when Salesforce rejects a single-record update
+  if (!res.success) {
+    const errors = (res as { errors?: { message?: string }[] }).errors ?? []
+    throw new Error(errors.map(e => e.message).filter(Boolean).join('; ') || 'Salesforce rejected the update')
+  }
 }

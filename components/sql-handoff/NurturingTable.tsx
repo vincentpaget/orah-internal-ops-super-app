@@ -3,7 +3,8 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { EnrichedOpportunity, ModalKind } from '@/lib/sql-handoff/types'
-import { NURTURE_BUCKET_ORDER, NURTURE_REASON_TOOLTIP, nurtureBucket, meetingLabel, moneyWithCurrency } from '@/lib/sql-handoff/logic'
+import { NURTURE_BUCKET_ORDER, NURTURE_REASON_TOOLTIP, nurtureBucket, dateBucket, meetingLabel, moneyWithCurrency } from '@/lib/sql-handoff/logic'
+import MeddiccLights from './MeddiccLights'
 import WarningBadge from './WarningBadge'
 import ExpandableText from './ExpandableText'
 import InfoTooltip from './InfoTooltip'
@@ -12,7 +13,7 @@ import { RecordLinkButtons } from './PipelineTable'
 import ActionsMenu from './ActionsMenu'
 import { PencilIcon, SpinnerIcon, CheckIcon, XIcon, ICON_BTN, EDIT_FIELD, EDIT_TEXTAREA } from './InlineEditKit'
 
-type ColumnKey = 'title' | 'links' | 'rtype' | 'owner' | 'amount' | 'createdBy' | 'reengage' | 'reason' | 'nextStep' | 'last' | 'next' | 'touched' | 'mgrNotes' | 'warnings' | 'edit' | 'actions' | 'sqoDate' | 'closeDate'
+type ColumnKey = 'title' | 'links' | 'rtype' | 'owner' | 'amount' | 'createdBy' | 'reengage' | 'reason' | 'nextStep' | 'last' | 'next' | 'touched' | 'mgrNotes' | 'warnings' | 'edit' | 'actions' | 'sqoDate' | 'closeDate' | 'meddicc'
 
 interface InlineDraft {
   closeDate: string
@@ -39,6 +40,7 @@ interface Props {
   onSort: (key: string) => void
   onInlineSave: (card: EnrichedOpportunity, patch: InlineDraft) => Promise<boolean>
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
+  onMeddicc: (card: EnrichedOpportunity) => void
 }
 
 const CLIP: CSSProperties = { display: 'block', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
@@ -51,26 +53,26 @@ const TITLE_CELL: CSSProperties = {
   boxShadow: '1px 0 0 0 rgba(0,0,0,0.06)', alignSelf: 'stretch', display: 'flex', alignItems: 'center',
 }
 
-const KEYS: ColumnKey[] = ['title', 'links', 'rtype', 'createdBy', 'owner', 'amount', 'sqoDate', 'closeDate', 'reengage', 'reason', 'nextStep', 'last', 'next', 'touched', 'mgrNotes', 'warnings', 'edit', 'actions']
+const KEYS: ColumnKey[] = ['title', 'links', 'rtype', 'createdBy', 'owner', 'amount', 'sqoDate', 'closeDate', 'reengage', 'reason', 'nextStep', 'last', 'next', 'touched', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions']
 
 const WIDTHS: Record<ColumnKey, string> = {
   title: '280px', links: '64px', rtype: '110px', createdBy: '112px', owner: '112px', amount: '104px',
   reengage: '160px', reason: '240px', nextStep: '200px', last: '116px', next: '116px', touched: '116px',
-  mgrNotes: '220px', warnings: '92px', edit: '56px', actions: '84px', sqoDate: '104px', closeDate: '140px',
+  mgrNotes: '220px', warnings: '92px', edit: '56px', actions: '84px', sqoDate: '104px', closeDate: '140px', meddicc: '196px',
 }
 
 const LABELS: Record<ColumnKey, string> = {
   title: 'Opportunity', links: 'Links', rtype: 'Record Type', owner: 'Owner', createdBy: 'Created By', amount: 'Amount (Net ARR)',
   reengage: 'Re-engagement Date', reason: 'Nurturing Reason',
   nextStep: 'Next Step', last: 'Last Meeting', next: 'Next Meeting', touched: 'Last Activity',
-  mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '', actions: 'Action', sqoDate: 'SQO Date', closeDate: 'Close Date',
+  mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '', actions: 'Action', sqoDate: 'SQO Date', closeDate: 'Close Date', meddicc: 'MEDDICCC',
 }
 
 const SORT_FIELD: Partial<Record<ColumnKey, string>> = {
   title: 'Name', rtype: 'Record_Type_Name__c', owner: 'Owner.Name', createdBy: 'CreatedBy.Name', amount: 'Amount',
   reengage: 'Re_engagement_Date__c',
   nextStep: 'NextStep', last: 'Last_Meeting_Date__c', next: 'Next_Meeting_Date__c', touched: 'touchedDays',
-  mgrNotes: 'Manager_Review_Notes__c', warnings: 'warnCount', sqoDate: 'SQO_Date__c', closeDate: 'CloseDate',
+  mgrNotes: 'Manager_Review_Notes__c', warnings: 'warnCount', sqoDate: 'SQO_Date__c', closeDate: 'CloseDate', meddicc: 'meddiccScore',
 }
 
 function cText(t: string | null | undefined, style: CSSProperties = TEXT): ReactNode {
@@ -86,7 +88,7 @@ function EyeIcon() {
   )
 }
 
-function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx, onAction: Props['onAction']): ReactNode {
+function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx, onAction: Props['onAction'], onMeddicc: Props['onMeddicc']): ReactNode {
   const isEditingRow = editCtx.isEditing
   switch (key) {
     case 'title':
@@ -137,8 +139,7 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx,
         )
       }
       if (!c.Re_engagement_Date__c) return cText('—', META)
-      const bucket = nurtureBucket(c)
-      const overdue = bucket === 'overdue'
+      const overdue = dateBucket(c.Re_engagement_Date__c) === 'overdue'
       return <span style={{ fontSize: 13, fontWeight: overdue ? 700 : 400, color: overdue ? '#D32F2F' : 'rgba(0,0,0,0.87)' }}>{meetingLabel(c.Re_engagement_Date__c)}</span>
     }
     case 'reason':
@@ -181,6 +182,8 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, editCtx: RowEditCtx,
       return <ExpandableText text={c.Manager_Review_Notes__c} style={TEXT} />
     case 'warnings':
       return <WarningBadge card={c} />
+    case 'meddicc':
+      return <MeddiccLights opp={c} score={c.meddiccScore} onClick={() => onMeddicc(c)} />
     case 'edit':
       if (isEditingRow) {
         return (
@@ -247,7 +250,7 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   return 0
 }
 
-export default function NurturingTable({ rows, sortKey, sortDir, onSort, onInlineSave, onAction }: Props) {
+export default function NurturingTable({ rows, sortKey, sortDir, onSort, onInlineSave, onAction, onMeddicc }: Props) {
   const keys = [...KEYS, 'spacer' as const]
   const gridTemplateColumns = keys.map(k => (k === 'spacer' ? '1fr' : WIDTHS[k])).join(' ')
   const gridStyle: CSSProperties = { display: 'grid', width: 'max-content', minWidth: '100%', boxSizing: 'border-box', gridTemplateColumns, gap: 12, alignItems: 'start' }
@@ -356,7 +359,7 @@ export default function NurturingTable({ rows, sortKey, sortDir, onSort, onInlin
                   <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === items.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
                     {keys.map(k => (
                       <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                        {k === 'spacer' ? null : renderCell(k, c, editCtx, onAction)}
+                        {k === 'spacer' ? null : renderCell(k, c, editCtx, onAction, onMeddicc)}
                       </div>
                     ))}
                   </div>

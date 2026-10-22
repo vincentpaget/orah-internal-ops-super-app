@@ -3,15 +3,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type {
-  SFSqlHandoffOpportunity, SFSqlDashboardRecord, ModalState, ModalKind, TabKey, WarningKey, MeddiccKey,
+  SFSqlHandoffOpportunity, SFSqlDashboardRecord, EnrichedOpportunity, ModalState, ModalKind, TabKey, WarningKey, MeddiccKey,
 } from '@/lib/sql-handoff/types'
 import {
   enrichOpportunity, matchTab, isNurturingStage, buildMatrix, computeStageCounts, computeWarningsSummary,
-  computeDashboardMetrics, buildModalForm, isModalBlocked, TAB_DEFAULT_SORT, MEDDICC_FIELDS,
+  computeDashboardMetrics, buildModalForm, isModalBlocked, TAB_DEFAULT_SORT, MEDDICC_FIELDS, changedMeddicc,
 } from '@/lib/sql-handoff/logic'
 import PipelineView from './PipelineView'
 import DashboardView from './DashboardView'
 import OpportunityModal from './OpportunityModal'
+import MeddiccModal from './MeddiccModal'
 import Toast from './Toast'
 
 interface Props {
@@ -72,6 +73,7 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory, 
   const [sortDir, setSortDir] = useState<1 | -1>(TAB_DEFAULT_SORT.held.dir)
 
   const [modal, setModal] = useState<ModalState | null>(null)
+  const [meddiccTarget, setMeddiccTarget] = useState<EnrichedOpportunity | null>(null)
   const [showErrors, setShowErrors] = useState(false)
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
@@ -228,6 +230,31 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory, 
     }
   }
 
+  async function saveMeddicc(target: EnrichedOpportunity, form: ModalState['form']['meddicc']): Promise<boolean> {
+    const namePrefix = target.Name.split(' - ')[0]
+    const changes = changedMeddicc(target, form)
+    try {
+      await postJson('/api/sql-handoff/meddicc', { opportunityId: target.Id, meddicc: changes })
+      const apply = (i: SFSqlHandoffOpportunity): SFSqlHandoffOpportunity => {
+        if (i.Id !== target.Id) return i
+        const next = { ...i } as Record<string, unknown>
+        MEDDICC_FIELDS.forEach(m => {
+          const c = changes[m.key]
+          if (c?.grade !== undefined) next[m.gradeField] = c.grade
+          if (c?.notes !== undefined) next[m.notesField] = c.notes || null
+        })
+        return next as unknown as SFSqlHandoffOpportunity
+      }
+      setItems(prev => prev.map(apply))
+      setNurtureItems(prev => prev.map(apply))
+      setToast(`${namePrefix} MEDDICC updated`)
+      return true
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : 'Failed to save')
+      return false
+    }
+  }
+
   async function inlineSave(
     target: (typeof enriched)[number],
     patch: { outcome: string; nextStep: string; managerReviewNotes: string }
@@ -344,7 +371,7 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory, 
           warnSel={warnSel} onToggleWarn={toggleWarn} onClearWarn={() => setWarnSel([])}
           tab={tab} onTabChange={handleTabChange}
           sortKey={sortKey} sortDir={sortDir} onSort={handleSort}
-          onAction={openModal} onInlineSave={inlineSave} onNurtureInlineSave={inlineSaveNurture}
+          onAction={openModal} onInlineSave={inlineSave} onNurtureInlineSave={inlineSaveNurture} onMeddicc={setMeddiccTarget}
         />
       )}
 
@@ -360,6 +387,10 @@ export default function SqlHandoffApp({ opportunities, history: initialHistory, 
           kind={modal.kind} target={modal.target} form={modal.form} showErrors={showErrors} saving={saving}
           onFieldChange={updateField} onMeddiccChange={updateMeddicc} onCancel={closeModal} onConfirm={confirmModal}
         />
+      )}
+
+      {meddiccTarget && (
+        <MeddiccModal target={meddiccTarget} onSave={saveMeddicc} onClose={() => setMeddiccTarget(null)} />
       )}
 
       {toast && <Toast message={toast} />}

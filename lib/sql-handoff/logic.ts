@@ -105,7 +105,7 @@ export const TABS: { key: TabKey; label: string; hint: string; criteria: string 
     criteria: 'Meeting Outcome is "Held - interested", "Held - not interested", "Held - deferred", "Held - disqualified", or "Held - other".',
   },
   {
-    key: 'nurture', label: 'Nurturing', hint: 'In Nurturing, grouped by re-engagement date. Qualify into Evaluation once re-engaged, or Disqualify.',
+    key: 'nurture', label: 'Nurturing', hint: 'In Nurturing, grouped by close date. Qualify into Evaluation once re-engaged, or Disqualify.',
     criteria: 'Stage is Nurturing.',
   },
 ]
@@ -117,8 +117,8 @@ export const TAB_DEFAULT_SORT: Record<TabKey, { key: string; dir: 1 | -1 }> = {
   'no-meeting': { key: 'age', dir: 1 },
   scheduled: { key: 'Next_Meeting_Date__c', dir: 1 },
   'outcome-required': { key: 'Last_Meeting_Date__c', dir: -1 },
-  held: { key: 'Last_Meeting_Date__c', dir: -1 },
-  nurture: { key: 'Re_engagement_Date__c', dir: 1 },
+  held: { key: 'meddiccScore', dir: -1 },
+  nurture: { key: 'CloseDate', dir: 1 },
 }
 
 /** Nurturing-stage opps only ever appear in the Nurture tab — every other tab is Qualifying-only. */
@@ -203,17 +203,22 @@ export const NURTURE_REASON_TOOLTIP =
 
 export type NurtureBucketKey = 'overdue' | 'due30' | 'due60' | 'due90' | 'due90plus' | 'no-date'
 
+// Nurturing tab groups, by Close Date
 export const NURTURE_BUCKET_ORDER: { key: NurtureBucketKey; label: string; bg: string; fg: string }[] = [
-  { key: 'no-date', label: 'No Date Set', bg: '#F5F5F5', fg: '#757575' },
-  { key: 'overdue', label: 'Overdue', bg: '#FDECEC', fg: '#D32F2F' },
-  { key: 'due30', label: 'Due ≤30 Days', bg: '#FFF3E0', fg: '#B35C00' },
-  { key: 'due60', label: '31–60 Days', bg: '#FFF8E1', fg: '#8A6100' },
-  { key: 'due90', label: '61–90 Days', bg: '#F5F5F5', fg: '#434343' },
-  { key: 'due90plus', label: '90+ Days', bg: '#FAFAFA', fg: '#9E9E9E' },
+  { key: 'no-date', label: 'No Close Date', bg: '#F5F5F5', fg: '#757575' },
+  { key: 'overdue', label: 'Close Date Passed', bg: '#FDECEC', fg: '#D32F2F' },
+  { key: 'due30', label: 'Closing ≤30 Days', bg: '#FFF3E0', fg: '#B35C00' },
+  { key: 'due60', label: 'Closing 31–60 Days', bg: '#FFF8E1', fg: '#8A6100' },
+  { key: 'due90', label: 'Closing 61–90 Days', bg: '#F5F5F5', fg: '#434343' },
+  { key: 'due90plus', label: 'Closing 90+ Days', bg: '#FAFAFA', fg: '#9E9E9E' },
 ]
 
+/** Which Nurturing group an opp falls in, by Close Date */
 export function nurtureBucket(c: EnrichedOpportunity): NurtureBucketKey {
-  const date = c.Re_engagement_Date__c
+  return dateBucket(c.CloseDate)
+}
+
+export function dateBucket(date: string | null): NurtureBucketKey {
   if (!date) return 'no-date'
   const days = daysUntil(date)
   if (days < 0) return 'overdue'
@@ -297,7 +302,58 @@ export function buildMeddiccFields(form: Partial<Record<MeddiccKey, { grade: str
   return fields
 }
 
+// Mirrors the MEDDICC_Score__c formula in Salesforce: each grade scores Red 0 / Yellow 1 / Green 2,
+// weighted, out of 100. Computed here so the score updates as soon as grades are edited in the app.
+const MEDDICC_WEIGHTS: Record<MeddiccKey, number> = {
+  me: 0.05, eb: 0.2, dc: 0.15, dp: 0.15, ip: 0.05, ch: 0.1, co: 0.1, ce: 0.2,
+}
+const GRADE_POINTS: Record<string, number> = { Red: 0, Yellow: 1, Green: 2 }
+
+export function meddiccScore(opp: SFSqlHandoffOpportunity): number {
+  const total = MEDDICC_FIELDS.reduce((sum, m) => sum + (GRADE_POINTS[(opp[m.gradeField] as string | null) ?? ''] ?? 0) * MEDDICC_WEIGHTS[m.key], 0)
+  return Math.round((total / 2) * 100)
+}
+
+// SQO criteria: Identified Pain, Economic Buyer and Compelling Event all graded Yellow or Green.
+const SQO_CRITERIA_KEYS: MeddiccKey[] = ['ip', 'eb', 'ce']
+
+export function isSqoCriteriaMet(opp: SFSqlHandoffOpportunity): boolean {
+  return SQO_CRITERIA_KEYS.every(key => {
+    const m = MEDDICC_FIELDS.find(f => f.key === key)!
+    const grade = opp[m.gradeField]
+    return grade === 'Yellow' || grade === 'Green'
+  })
+}
+
+/** MEDDICC form for the pop-up. Unlike buildModalForm, an ungraded element stays blank instead of defaulting to Red. */
+export function buildMeddiccForm(opp: SFSqlHandoffOpportunity): ModalFormState['meddicc'] {
+  const meddicc = {} as ModalFormState['meddicc']
+  MEDDICC_FIELDS.forEach(m => {
+    meddicc[m.key] = {
+      grade: ((opp[m.gradeField] as MeddiccGrade | null) ?? '') as MeddiccGrade,
+      notes: (opp[m.notesField] as string | null) ?? '',
+    }
+  })
+  return meddicc
+}
+
+/** Only the MEDDICC elements whose grade or notes differ from what's on the opportunity. */
+export function changedMeddicc(
+  opp: SFSqlHandoffOpportunity, form: ModalFormState['meddicc']
+): Partial<Record<MeddiccKey, { grade?: string; notes?: string }>> {
+  const out: Partial<Record<MeddiccKey, { grade?: string; notes?: string }>> = {}
+  MEDDICC_FIELDS.forEach(m => {
+    const entry = form[m.key]
+    const change: { grade?: string; notes?: string } = {}
+    if (entry.grade && entry.grade !== (opp[m.gradeField] ?? '')) change.grade = entry.grade
+    if (entry.notes !== ((opp[m.notesField] as string | null) ?? '')) change.notes = entry.notes
+    if (change.grade !== undefined || change.notes !== undefined) out[m.key] = change
+  })
+  return out
+}
+
 export function gradeColors(g: string | null): { bg: string; fg: string } {
+  if (!g) return { bg: '#F5F5F5', fg: 'rgba(0,0,0,0.54)' }
   if (g === 'Green') return { bg: '#E8F5E9', fg: '#2E7D32' }
   if (g === 'Yellow') return { bg: '#FFF3E0', fg: '#B35C00' }
   return { bg: '#FDECEC', fg: '#D32F2F' }
@@ -503,6 +559,7 @@ export function enrichOpportunity(opp: SFSqlHandoffOpportunity): EnrichedOpportu
     warnList,
     warnCount: hits.length,
     sfUrl: SALESFORCE_BASE + opp.Id + '/view',
+    meddiccScore: meddiccScore(opp),
   }
 }
 

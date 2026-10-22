@@ -4,7 +4,8 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { EnrichedOpportunity, ModalKind, TabKey } from '@/lib/sql-handoff/types'
 import { INITIAL_MEETING_OUTCOMES } from '@/lib/sql-handoff/types'
-import { outcomePill } from '@/lib/sql-handoff/logic'
+import { outcomePill, isSqoCriteriaMet } from '@/lib/sql-handoff/logic'
+import MeddiccLights from './MeddiccLights'
 import WarningBadge from './WarningBadge'
 import ActionsMenu from './ActionsMenu'
 import ExpandableText from './ExpandableText'
@@ -12,7 +13,7 @@ import { PencilIcon, SpinnerIcon, CheckIcon, XIcon, ICON_BTN, EDIT_FIELD, EDIT_T
 
 type ColumnKey =
   | 'title' | 'links' | 'rtype' | 'createdBy' | 'owner' | 'age' | 'outcome' | 'next' | 'last'
-  | 'touched' | 'nextStep' | 'disco' | 'fup' | 'aiUpdate' | 'aiNext' | 'mgrNotes' | 'warnings' | 'edit' | 'actions'
+  | 'touched' | 'nextStep' | 'disco' | 'fup' | 'aiUpdate' | 'aiNext' | 'mgrNotes' | 'warnings' | 'meddicc' | 'edit' | 'actions'
 
 interface InlineDraft {
   outcome: string
@@ -41,6 +42,7 @@ interface Props {
   onSort: (key: string) => void
   onAction: (kind: ModalKind, card: EnrichedOpportunity) => void
   onInlineSave: (card: EnrichedOpportunity, patch: InlineDraft) => Promise<boolean>
+  onMeddicc: (card: EnrichedOpportunity) => void
 }
 
 const CLIP: CSSProperties = { display: 'block', minWidth: 0, maxWidth: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }
@@ -57,33 +59,39 @@ const TITLE_CELL: CSSProperties = {
 }
 
 const LAYOUT: Record<PipelineTableTab, ColumnKey[]> = {
-  all: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  'outcome-required': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
-  held: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'edit', 'actions'],
+  all: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions'],
+  'no-meeting': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions'],
+  scheduled: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'disco', 'nextStep', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions'],
+  'outcome-required': ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions'],
+  held: ['title', 'links', 'rtype', 'createdBy', 'owner', 'age', 'outcome', 'fup', 'last', 'next', 'touched', 'nextStep', 'mgrNotes', 'warnings', 'meddicc', 'edit', 'actions'],
 }
 
 const WIDTHS: Record<ColumnKey, string> = {
   title: '320px', links: '64px', rtype: '112px', createdBy: '112px', owner: '112px', age: '58px',
   outcome: '170px', next: '112px', last: '116px', touched: '116px', nextStep: '180px',
-  disco: '260px', fup: '220px', aiUpdate: '250px', aiNext: '250px', mgrNotes: '220px', warnings: '92px', edit: '56px', actions: '84px',
+  disco: '260px', fup: '220px', aiUpdate: '250px', aiNext: '250px', mgrNotes: '220px', warnings: '92px', meddicc: '196px', edit: '56px', actions: '84px',
 }
 
 const LABELS: Record<ColumnKey, string> = {
   title: 'Opportunity', links: 'Links', rtype: 'Record Type', createdBy: 'Created By', owner: 'Owner', age: 'Age',
   outcome: 'Meeting Outcome', next: 'Next Meeting', last: 'Last Meeting', touched: 'Last Touched',
   nextStep: 'Next Steps', disco: 'Discovery Notes', fup: 'FUp Status', aiUpdate: 'AI Last Update',
-  aiNext: 'AI Next Steps', mgrNotes: 'Manager Review Notes', warnings: 'Warnings', edit: '', actions: 'Action',
+  aiNext: 'AI Next Steps', mgrNotes: 'Manager Review Notes', warnings: 'Warnings', meddicc: 'MEDDICCC', edit: '', actions: 'Action',
 }
 
 const SORT_FIELD: Partial<Record<ColumnKey, string>> = {
   title: 'Name', rtype: 'Record_Type_Name__c', createdBy: 'CreatedBy.Name', owner: 'Owner.Name',
   age: 'age', outcome: 'Initial_Meeting_Outcome__c', next: 'Next_Meeting_Date__c', last: 'Last_Meeting_Date__c',
   touched: 'touchedDays', nextStep: 'NextStep', disco: 'Discovery_Notes__c', fup: 'Initial_Meeting_FUp_Email_Status__c',
-  mgrNotes: 'Manager_Review_Notes__c',
+  mgrNotes: 'Manager_Review_Notes__c', meddicc: 'meddiccScore',
   aiUpdate: 'AI_Last_Update__c', aiNext: 'AI_Next_Steps__c', warnings: 'warnCount',
 }
+
+// Held tab groups: does the opp meet SQO criteria (Identified Pain, Economic Buyer, Compelling Event all Yellow/Green)?
+const SQO_GROUPS: { met: boolean; label: string; bg: string; fg: string }[] = [
+  { met: true, label: 'SQO Criteria Met', bg: '#E8F5E9', fg: '#2E7D32' },
+  { met: false, label: 'SQO Criteria Not Met', bg: '#FDECEC', fg: '#D32F2F' },
+]
 
 const HELD_ORDER: { outcome: string; label: string; bg: string; fg: string }[] = [
   { outcome: 'Held - interested', label: 'Interested', bg: '#E8F5E9', fg: '#2E7D32' },
@@ -149,7 +157,7 @@ function cPillFull(t: string, bg: string, fg: string): ReactNode {
   )
 }
 
-function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onAction'], editCtx: RowEditCtx): ReactNode {
+function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onAction'], onMeddicc: Props['onMeddicc'], editCtx: RowEditCtx): ReactNode {
   const isEditingRow = editCtx.isEditing
   switch (key) {
     case 'title':
@@ -235,6 +243,8 @@ function renderCell(key: ColumnKey, c: EnrichedOpportunity, onAction: Props['onA
     }
     case 'warnings':
       return <WarningBadge card={c} />
+    case 'meddicc':
+      return <MeddiccLights opp={c} score={c.meddiccScore} onClick={() => onMeddicc(c)} />
     case 'edit':
       if (isEditingRow) {
         return (
@@ -293,7 +303,7 @@ function compareBy(a: EnrichedOpportunity, b: EnrichedOpportunity, key: string, 
   return 0
 }
 
-export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onAction, onInlineSave }: Props) {
+export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onAction, onInlineSave, onMeddicc }: Props) {
   const keys = [...LAYOUT[tab], 'spacer' as const]
   const gridTemplateColumns = keys.map(k => (k === 'spacer' ? '1fr' : WIDTHS[k])).join(' ')
   const gridStyle: CSSProperties = { display: 'grid', width: 'max-content', minWidth: '100%', boxSizing: 'border-box', gridTemplateColumns, gap: 12, alignItems: 'start' }
@@ -373,11 +383,11 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
       </div>
 
       {isHeldTab ? (
-        HELD_ORDER.map(group => {
-          const items = sorted.filter(c => c.Initial_Meeting_Outcome__c === group.outcome)
+        SQO_GROUPS.map(group => {
+          const items = sorted.filter(c => isSqoCriteriaMet(c) === group.met)
           if (!items.length) return null
           return (
-            <div key={group.outcome}>
+            <div key={group.label}>
               <div style={{ ...gridStyle, background: group.bg, padding: '8px 0', borderBottom: '1px solid rgba(0,0,0,0.06)', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
                 <div style={{
                   gridColumn: '1 / -1', position: 'sticky', left: 0, display: 'flex', alignItems: 'center', gap: 8,
@@ -393,7 +403,7 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
                   <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === items.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
                     {keys.map(k => (
                       <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                        {k === 'spacer' ? null : renderCell(k, c, onAction, editCtx)}
+                        {k === 'spacer' ? null : renderCell(k, c, onAction, onMeddicc, editCtx)}
                       </div>
                     ))}
                   </div>
@@ -409,7 +419,7 @@ export default function PipelineTable({ tab, rows, sortKey, sortDir, onSort, onA
             <div key={c.Id} style={{ ...gridStyle, padding: '9px 16px 9px 0', alignItems: 'center', borderBottom: i === sorted.length - 1 ? undefined : '1px solid rgba(0,0,0,0.06)' }}>
               {keys.map(k => (
                 <div key={k} style={k === 'spacer' ? undefined : k === 'title' ? TITLE_CELL : CELL}>
-                  {k === 'spacer' ? null : renderCell(k, c, onAction, editCtx)}
+                  {k === 'spacer' ? null : renderCell(k, c, onAction, onMeddicc, editCtx)}
                 </div>
               ))}
             </div>
