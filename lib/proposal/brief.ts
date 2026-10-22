@@ -48,6 +48,7 @@ export function validateBrief(input: BriefInput, result: OfferResult): string[] 
   }
   if (!isIsoDate(input.startDate)) missing.push('Start / access date')
   if (input.lines.length === 0) missing.push('Line items (configure the calculator)')
+  if (input.oneTimeFees.length === 0) missing.push('Onboarding (configure the calculator)')
   if (result.options.length === 0) missing.push('At least one offer')
   req(input.rollout.kickoffDate, 'Onboarding kickoff date')
   req(input.rollout.setupWindow, 'Integration and setup window')
@@ -60,7 +61,7 @@ export function validateBrief(input: BriefInput, result: OfferResult): string[] 
 
 export function policyFor(input: OfferInput, result: OfferResult): PolicyResult {
   return checkPolicy({
-    offers: result.options.map(o => ({ type: o.type, discountPct: o.discountPct, onboardingDiscountPct: o.onboarding.discountPct })),
+    offers: result.options.map(o => ({ letter: o.letter, discountPct: o.discountPct, oneTimeDiscountPct: o.oneTimeFees.discountPct })),
   })
 }
 
@@ -116,6 +117,10 @@ export function renderBrief(input: BriefInput, result: OfferResult, policy: Poli
 
   out.push('approval:')
   kv(2, 'status', policy.status)
+  if (policy.items.length > 0) {
+    out.push('  items:')
+    for (const item of policy.items) out.push(`    - ${v(item)}`)
+  }
 
   out.push('options:')
   for (const o of result.options) {
@@ -134,11 +139,15 @@ export function renderBrief(input: BriefInput, result: OfferResult, policy: Poli
     kv(4, 'annual_saving', o.annualSaving !== undefined ? m(o.annualSaving) : undefined)
     kv(4, 'prorated_period', o.proratedPeriod)
     kv(4, 'early_access_period', o.earlyAccessPeriod)
-    out.push('    onboarding:')
-    kv(6, 'list', m(o.onboarding.list))
-    kv(6, 'discount_pct', pct(o.onboarding.discountPct))
-    kv(6, 'discount_amount', m(o.onboarding.discountAmount))
-    kv(6, 'total', m(o.onboarding.total))
+    out.push('    one_time_fees:')
+    out.push('      items:')
+    for (const l of o.oneTimeFees.lines) {
+      out.push(`        - {product: ${f(l.product)}, qty: ${l.qty}, unit_price: ${unitMoney(l.unitPrice, c)}, list: ${m(lineAnnual(l))}}`)
+    }
+    kv(6, 'list', m(o.oneTimeFees.list))
+    kv(6, 'discount_pct', pct(o.oneTimeFees.discountPct))
+    kv(6, 'discount_amount', m(o.oneTimeFees.discountAmount))
+    kv(6, 'total', m(o.oneTimeFees.total))
     kv(4, 'due_at_signature', m(o.dueAtSignature))
     out.push('    schedule:')
     for (const r of o.schedule) {

@@ -8,7 +8,7 @@ import { generateBrief, EXPIRY_MAX_DAYS, type BriefInput } from '@/lib/proposal/
 import { lineAnnual, type ComputedOffer, type LineItem } from '@/lib/proposal/calc'
 import { addDays, firstOfNextMonth, formatLong, formatShort, todayIso } from '@/lib/proposal/dates'
 import { money, months, unitMoney } from '@/lib/proposal/format'
-import { quoteToLines } from '@/lib/proposal/quoteToLines'
+import { quoteToLines, quoteToOneTimeFees } from '@/lib/proposal/quoteToLines'
 import OpportunityPicker from './OpportunityPicker'
 import { Field, GRID, INPUT, Notice, TextInput } from './ui'
 import styles from '../pricing.module.css'
@@ -52,6 +52,7 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
   const today = todayIso()
   const currency = quoteInput.currency
   const lines = useMemo(() => quoteToLines(quote, quoteInput), [quote, quoteInput])
+  const oneTimeFees = useMemo(() => quoteToOneTimeFees(quote), [quote])
 
   // Step 2 — opportunity
   const [opp, setOpp] = useState<ProposalOpp | null>(null)
@@ -76,7 +77,8 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
 
   // Step 5 — discounts
   const [discount, setDiscount] = useState<Record<OfferType, string>>({ standard: '0', funded: '0' })
-  const [onbDiscount, setOnbDiscount] = useState<Record<OfferType, string>>({ standard: '0', funded: '0' })
+  // One discount per offer for all one-time fees (onboarding + any others)
+  const [oneTimeDiscount, setOneTimeDiscount] = useState<Record<OfferType, string>>({ standard: '0', funded: '0' })
 
   // Step 6 — rollout
   const [kickoff, setKickoff] = useState('')
@@ -108,8 +110,8 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
   const baseInput: BriefInput = {
     currency,
     lines,
-    onboardingList: quote.onboardingFee,
-    onboardingDiscountPct: { standard: parsePct(onbDiscount.standard), funded: parsePct(onbDiscount.funded) },
+    oneTimeFees,
+    oneTimeDiscountPct: { standard: parsePct(oneTimeDiscount.standard), funded: parsePct(oneTimeDiscount.funded) },
     schoolYearStart,
     termYears,
     startDate,
@@ -206,10 +208,14 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
               <td style={{ padding: '7px 0' }} colSpan={3}>List total</td>
               <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(result.listTotal)}</td>
             </tr>
-            <tr>
-              <td style={{ padding: '7px 0' }} colSpan={3}>{quote.tier.onboarding.name} (one-time)</td>
-              <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(quote.onboardingFee)}</td>
-            </tr>
+            {oneTimeFees.map(l => (
+              <tr key={l.product}>
+                <td style={{ padding: '7px 0' }}>{l.product} (one-time)</td>
+                <td style={{ padding: '7px 0', textAlign: 'right' }}>{l.qty}</td>
+                <td style={{ padding: '7px 0', textAlign: 'right' }}>{unitMoney(l.unitPrice, currency)}</td>
+                <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(lineAnnual(l))}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
         <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>Currency: {currency}. To change products or quantities, go back to the calculator.</div>
@@ -317,8 +323,8 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
                 <Field label="Subscription discount %" hint={`${m(o.discountAmount)} off · max ${DISCOUNT_POLICY.subscriptionMaxPct}%`}>
                   <TextInput type="number" min={0} max={100} step={1} value={discount[o.type]} onChange={v => setDiscount(p => ({ ...p, [o.type]: v.replace(/\D/g, '') }))} />
                 </Field>
-                <Field label="Onboarding discount %" hint={`${m(o.onboarding.discountAmount)} off · max ${DISCOUNT_POLICY.onboardingMaxPct}%`}>
-                  <TextInput type="number" min={0} max={100} step={1} value={onbDiscount[o.type]} onChange={v => setOnbDiscount(p => ({ ...p, [o.type]: v.replace(/\D/g, '') }))} />
+                <Field label="One-time fees discount %" hint={`${m(o.oneTimeFees.discountAmount)} off · max ${DISCOUNT_POLICY.oneTimeMaxPct}%`}>
+                  <TextInput type="number" min={0} max={100} step={1} value={oneTimeDiscount[o.type]} onChange={v => setOneTimeDiscount(p => ({ ...p, [o.type]: v.replace(/\D/g, '') }))} />
                 </Field>
               </div>
             </div>
@@ -536,14 +542,17 @@ function OfferSummary({ offer, lines, listTotal, contractEnd, currency, recommen
         <Row label="Annual saving vs Funded" value={offer.annualSaving !== undefined ? m(offer.annualSaving) : NA} muted={offer.annualSaving === undefined} />
       </Group>
 
-      <Group title="Onboarding">
-        <Row label="List" value={m(offer.onboarding.list)} />
-        <Row label={`Discount (${offer.onboarding.discountPct}%)`} value={`−${m(offer.onboarding.discountAmount)}`} />
-        <Row label="Total" value={m(offer.onboarding.total)} bold />
+      <Group title="One-time fees">
+        {offer.oneTimeFees.lines.map((l, i) => (
+          <Row key={l.product} label={i === 0 ? l.product : `${l.product} × ${l.qty}`} value={m(lineAnnual(l))} />
+        ))}
+        <Row label="List" value={m(offer.oneTimeFees.list)} />
+        <Row label={`Discount (${offer.oneTimeFees.discountPct}%)`} value={`−${m(offer.oneTimeFees.discountAmount)}`} />
+        <Row label="Total" value={m(offer.oneTimeFees.total)} bold />
       </Group>
 
       <Group title="Due at signature">
-        <Row label="Onboarding" value={m(offer.onboarding.total)} />
+        <Row label="One-time fees" value={m(offer.oneTimeFees.total)} />
         <Row
           label={offer.stubMonths > 0 ? `Pro-rated stub (${offer.proratedPeriod}, ${months(offer.stubMonths)})` : 'Pro-rated stub'}
           value={offer.stubMonths > 0 ? m(offer.stub) : NA}

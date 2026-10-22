@@ -11,8 +11,8 @@ export const DISCOUNT_POLICY = {
   approvers: 'Vinni or Paul',
   /** Subscription discount above this (per offer) needs approval. */
   subscriptionMaxPct: 30,
-  /** Onboarding discount above this needs approval. */
-  onboardingMaxPct: 50,
+  /** One-time fees discount (onboarding + any other one-time fees) above this needs approval. */
+  oneTimeMaxPct: 50,
 }
 
 export const OFFER_LABELS: Record<OfferType, { name: string; tagline: string }> = {
@@ -47,6 +47,12 @@ export function briefTierName(platform: Platform, tierId: string, fallback: stri
   return BRIEF_TIER_NAMES[`${platform}:${tierId}`] ?? fallback
 }
 
+/** Calculator onboarding name → proposal name: "Onboarding Standard" → "Onboarding (Standard)". */
+export function briefOnboardingName(name: string): string {
+  const m = name.match(/^Onboarding (\w+)$/)
+  return m ? `Onboarding (${m[1]})` : name
+}
+
 export function briefAddonName(name: string): string {
   return BRIEF_ADDON_NAMES[name] ?? name
 }
@@ -56,7 +62,7 @@ export function briefAddonName(name: string): string {
 export type ApprovalStatus = 'within_policy' | 'needs_approval'
 
 export interface PolicyInput {
-  offers: { type: OfferType; discountPct: number; onboardingDiscountPct: number }[]
+  offers: { letter: string; discountPct: number; oneTimeDiscountPct: number }[]
 }
 
 export interface PolicyResult {
@@ -68,12 +74,12 @@ export interface PolicyResult {
 export function checkPolicy(input: PolicyInput): PolicyResult {
   const items: string[] = []
   for (const o of input.offers) {
-    const name = OFFER_LABELS[o.type].name
+    const name = `Option ${o.letter.toUpperCase()}`
     if (o.discountPct > DISCOUNT_POLICY.subscriptionMaxPct) {
-      items.push(`${name} subscription discount ${o.discountPct}% is above ${DISCOUNT_POLICY.subscriptionMaxPct}%`)
+      items.push(`${name} subscription discount ${o.discountPct}% exceeds the ${DISCOUNT_POLICY.subscriptionMaxPct}% limit`)
     }
-    if (o.onboardingDiscountPct > DISCOUNT_POLICY.onboardingMaxPct) {
-      items.push(`${name} onboarding discount ${o.onboardingDiscountPct}% is above ${DISCOUNT_POLICY.onboardingMaxPct}%`)
+    if (o.oneTimeDiscountPct > DISCOUNT_POLICY.oneTimeMaxPct) {
+      items.push(`${name} one-time fees discount ${o.oneTimeDiscountPct}% exceeds the ${DISCOUNT_POLICY.oneTimeMaxPct}% limit`)
     }
   }
   return { status: items.length > 0 ? 'needs_approval' : 'within_policy', items }

@@ -2,63 +2,66 @@ import { describe, expect, it } from 'vitest'
 import { generateBrief, type BriefInput } from '../brief'
 import { addDays, addYears, monthRange, monthsBetween, schoolYearStartOnOrAfter } from '../dates'
 import { money, unitMoney, yamlScalar } from '../format'
+import { briefOnboardingName } from '../config'
 
-const OPP_ID = '006XXXXXXXXXXXX'
-const OPP_NAME = 'Loomis Chaffee - New Subscription'
+const OPP_ID = '006Q9000018BijlIAC'
+const OPP_NAME = 'Crescent School - Supervise - 11/11/2025'
+const ONBOARDING = { product: 'Onboarding (Standard)', qty: 1, unitPrice: 6000 }
+const SMS = { product: 'SMS Credits (6k)', qty: 4, unitPrice: 300 }
 
 function acceptanceInput(overrides: Partial<BriefInput> = {}): BriefInput {
   return {
     currency: 'USD',
     lines: [
-      { product: 'Supervise 3 (Elite)', qty: 750, unitPrice: 30 },
-      { product: 'Boarding Add-On', qty: 520, unitPrice: 5 },
-      { product: 'Nurture', qty: 520, unitPrice: 6 },
+      { product: 'Supervise 3 (Elite)', qty: 500, unitPrice: 30 },
+      { product: 'Dismissals', qty: 500, unitPrice: 6 },
     ],
-    onboardingList: 5000,
-    onboardingDiscountPct: { standard: 50, funded: 50 },
+    oneTimeFees: [ONBOARDING, SMS],
+    oneTimeDiscountPct: { standard: 50, funded: 30 },
     schoolYearStart: '07-01',
     termYears: 2,
     startDate: '2026-11-01',
     include: { standard: true, funded: true },
     discountPct: { standard: 10, funded: 5 },
-    schoolName: 'The Loomis Chaffee School',
-    contactName: 'Chris Howes',
-    contactTitle: 'Dean of Students',
+    schoolName: 'Crescent School',
+    contactName: 'Natalie Vera',
+    contactTitle: 'Director of Educational Technology & Innovation',
     repName: 'James Showers',
     repEmail: 'james@orah.com',
     opportunityId: OPP_ID,
     opportunityName: OPP_NAME,
-    proposalDate: '2026-10-21',
-    expiryDate: '2026-10-31',
-    sis: 'Veracross',
+    proposalDate: '2026-10-22',
+    expiryDate: '2026-10-29',
+    sis: 'Blackbaud',
     recommended: 'funded',
     rollout: {
-      signByDate: '2026-10-31',
-      kickoffDate: 'Early Nov 2026',
-      setupWindow: 'Nov–Dec 2026',
-      trainingWindow: 'Jan–Jun 2027',
-      notes: 'A pilot group tests it through spring term and summer school, then staff training.',
+      signByDate: '2026-10-29',
+      kickoffDate: '2 Nov 2026',
+      setupWindow: 'Nov to Dec',
+      trainingWindow: 'Jan to Jun',
+      notes: 'Technical integration first, then admin training. Pilot with a small group from April, then go live to the full school.',
       goLiveDate: '2027-07-01',
     },
     ...overrides,
   }
 }
 
+// Change request v2, acceptance test 1: must match exactly
 const EXPECTED = `PROPOSAL BRIEF
 proposal:
-  school_name: The Loomis Chaffee School
-  contact_name: Chris Howes
-  contact_title: Dean of Students
+  school_name: Crescent School
+  contact_name: Natalie Vera
+  contact_title: Director of Educational Technology & Innovation
   rep_name: James Showers
   rep_email: james@orah.com
-  salesforce_opportunity_id: ${OPP_ID}
-  salesforce_opportunity_name: ${OPP_NAME}
-  proposal_date: 21 October 2026
-  expiry_date: 31 October 2026
+  salesforce_opportunity_id: 006Q9000018BijlIAC
+  salesforce_opportunity_name: Crescent School - Supervise - 11/11/2025
+  proposal_date: 22 October 2026
+  expiry_date: 29 October 2026
   currency: USD
   school_year_start: 1 July
   contract_end: 30 June 2029
-  sis: Veracross
+  sis: Blackbaud
   discount_policy_url: https://app.notion.com/p/3fb6511f93c781f4a4acd9aa8e628ad4
 approval:
   status: within_policy
@@ -69,63 +72,98 @@ options:
     billing_starts: 1 Nov 2026
     paid_term: 32 months
     line_items:
-      - {product: Supervise 3 (Elite), qty: 750, unit_price: $30.00, annual: $22,500}
-      - {product: Boarding Add-On, qty: 520, unit_price: $5.00, annual: $2,600}
-      - {product: Nurture, qty: 520, unit_price: $6.00, annual: $3,120}
+      - {product: Supervise 3 (Elite), qty: 500, unit_price: $30.00, annual: $15,000}
+      - {product: Dismissals, qty: 500, unit_price: $6.00, annual: $3,000}
     discount_pct: 10%
-    discount_amount: $2,822
-    annual: $25,398
-    annual_saving: $1,411
+    discount_amount: $1,800
+    annual: $16,200
+    annual_saving: $900
     prorated_period: Nov–Jun
-    onboarding:
-      list: $5,000
+    one_time_fees:
+      items:
+        - {product: Onboarding (Standard), qty: 1, unit_price: $6,000.00, list: $6,000}
+        - {product: SMS Credits (6k), qty: 4, unit_price: $300.00, list: $1,200}
+      list: $7,200
       discount_pct: 50%
-      discount_amount: $2,500
-      total: $2,500
-    due_at_signature: $19,432
+      discount_amount: $3,600
+      total: $3,600
+    due_at_signature: $14,400
     schedule:
-      - {date: 1 July 2027, amount: $25,398}
-      - {date: 1 July 2028, amount: $25,398}
+      - {date: 1 July 2027, amount: $16,200}
+      - {date: 1 July 2028, amount: $16,200}
   - letter: b
     type: funded
     start_or_access_date: 1 Nov 2026
     billing_starts: 1 Jul 2027
     paid_term: 24 months
     line_items:
-      - {product: Supervise 3 (Elite), qty: 750, unit_price: $30.00, annual: $22,500}
-      - {product: Boarding Add-On, qty: 520, unit_price: $5.00, annual: $2,600}
-      - {product: Nurture, qty: 520, unit_price: $6.00, annual: $3,120}
+      - {product: Supervise 3 (Elite), qty: 500, unit_price: $30.00, annual: $15,000}
+      - {product: Dismissals, qty: 500, unit_price: $6.00, annual: $3,000}
     discount_pct: 5%
-    discount_amount: $1,411
-    annual: $26,809
+    discount_amount: $900
+    annual: $17,100
     early_access_period: Nov–Jun
-    onboarding:
-      list: $5,000
-      discount_pct: 50%
-      discount_amount: $2,500
-      total: $2,500
-    due_at_signature: $2,500
+    one_time_fees:
+      items:
+        - {product: Onboarding (Standard), qty: 1, unit_price: $6,000.00, list: $6,000}
+        - {product: SMS Credits (6k), qty: 4, unit_price: $300.00, list: $1,200}
+      list: $7,200
+      discount_pct: 30%
+      discount_amount: $2,160
+      total: $5,040
+    due_at_signature: $5,040
     schedule:
-      - {date: 1 July 2027, amount: $26,809}
-      - {date: 1 July 2028, amount: $26,809}
+      - {date: 1 July 2027, amount: $17,100}
+      - {date: 1 July 2028, amount: $17,100}
 rollout:
-  sign_by: By 31 Oct 2026
-  kickoff_date: Early Nov 2026
-  setup_window: Nov–Dec 2026
-  training_window: Jan–Jun 2027
-  notes: A pilot group tests it through spring term and summer school, then staff training.
+  sign_by: By 29 Oct 2026
+  kickoff_date: 2 Nov 2026
+  setup_window: Nov to Dec
+  training_window: Jan to Jun
+  notes: Technical integration first, then admin training. Pilot with a small group from April, then go live to the full school.
   go_live_date: 1 July 2027
   recommended_option: Option B · Set Up Now, Pay Later`
 
 describe('PROPOSAL BRIEF', () => {
-  it('matches the acceptance output exactly', () => {
+  it('1. reproduces the v2 example exactly', () => {
     const out = generateBrief(acceptanceInput())
     expect(out.missing).toEqual([])
     expect(out.canGenerate).toBe(true)
+    const [std] = out.result.options
+    expect(std.stub).toBe(10800)
+    expect(std.dueAtSignature).toBe(3600 + 10800)
     expect(out.text).toBe(EXPECTED)
   })
 
-  it('Standard only, starting on the school year start', () => {
+  it('2. onboarding only: items has just the onboarding row', () => {
+    const out = generateBrief(acceptanceInput({ oneTimeFees: [ONBOARDING] }))
+    expect(out.text).toContain(
+      '    one_time_fees:\n' +
+      '      items:\n' +
+      '        - {product: Onboarding (Standard), qty: 1, unit_price: $6,000.00, list: $6,000}\n' +
+      '      list: $6,000\n' +
+      '      discount_pct: 50%\n' +
+      '      discount_amount: $3,000\n' +
+      '      total: $3,000\n'
+    )
+    expect(out.text).not.toContain('SMS')
+  })
+
+  it('3. 0% one-time discount: discount $0, total = list', () => {
+    const out = generateBrief(acceptanceInput({ oneTimeDiscountPct: { standard: 0, funded: 0 } }))
+    expect(out.text).toContain('      list: $7,200\n      discount_pct: 0%\n      discount_amount: $0\n      total: $7,200\n')
+    expect(out.result.options[1].dueAtSignature).toBe(7200)
+  })
+
+  it('4. one-time discount of 60%: needs approval and generation is blocked', () => {
+    const out = generateBrief(acceptanceInput({ oneTimeDiscountPct: { standard: 50, funded: 60 } }))
+    expect(out.policy.status).toBe('needs_approval')
+    expect(out.policy.items).toEqual(['Option B one-time fees discount 60% exceeds the 50% limit'])
+    expect(out.canGenerate).toBe(false)
+    expect(out.text).toContain('approval:\n  status: needs_approval\n  items:\n    - Option B one-time fees discount 60% exceeds the 50% limit\noptions:')
+  })
+
+  it('5. Standard only, starting on the school year start', () => {
     const out = generateBrief(acceptanceInput({
       startDate: '2027-07-01',
       include: { standard: true, funded: false },
@@ -134,18 +172,27 @@ describe('PROPOSAL BRIEF', () => {
     const [std] = out.result.options
     expect(out.result.options).toHaveLength(1)
     expect(std.stubMonths).toBe(0)
-    expect(std.earlyAccessPeriod).toBeUndefined()
-    expect(std.proratedPeriod).toBeUndefined()
-    expect(std.dueAtSignature).toBe(2500)
-    expect(std.annualSaving).toBeUndefined()
     expect(std.paidTermMonths).toBe(24)
+    expect(std.dueAtSignature).toBe(3600)
     expect(out.result.defaultGoLive).toBe('2027-07-01')
-    expect(out.text).not.toContain('early_access_period')
     expect(out.text).not.toContain('prorated_period')
+    expect(out.text).not.toContain('early_access_period')
     expect(out.text).not.toContain('annual_saving')
     expect(out.text).not.toContain('recommended_option')
-    expect(out.text).toContain('    due_at_signature: $2,500\n')
+    expect(out.text).toContain('    due_at_signature: $3,600\n')
     expect(out.text).toContain('  contract_end: 30 June 2029\n')
+  })
+
+  it('6. Funded only: early_access_period, no annual_saving or prorated_period', () => {
+    const out = generateBrief(acceptanceInput({ include: { standard: false, funded: true } }))
+    const [funded] = out.result.options
+    expect(funded.type).toBe('funded')
+    expect(funded.letter).toBe('a')
+    expect(funded.dueAtSignature).toBe(5040)
+    expect(out.text).toContain('    early_access_period: Nov–Jun\n')
+    expect(out.text).not.toContain('annual_saving')
+    expect(out.text).not.toContain('prorated_period')
+    expect(out.text).not.toContain('recommended_option')
   })
 
   it('early access belongs to Funded, not Standard', () => {
@@ -153,7 +200,7 @@ describe('PROPOSAL BRIEF', () => {
     const [std, funded] = out.result.options
     expect(std.earlyAccessPeriod).toBeUndefined()
     expect(std.proratedPeriod).toBe('Nov–Jun')
-    expect(std.stub).toBe(16932)
+    expect(funded.proratedPeriod).toBeUndefined()
     expect(funded.earlyAccessPeriod).toBe('Nov–Jun')
   })
 
@@ -179,26 +226,28 @@ describe('PROPOSAL BRIEF', () => {
   it('35% subscription discount needs approval and blocks generation', () => {
     const out = generateBrief(acceptanceInput({ discountPct: { standard: 35, funded: 5 } }))
     expect(out.policy.status).toBe('needs_approval')
-    expect(out.policy.items).toHaveLength(1)
-    expect(out.policy.items[0]).toContain('35%')
+    expect(out.policy.items).toEqual(['Option A subscription discount 35% exceeds the 30% limit'])
     expect(out.canGenerate).toBe(false)
   })
 
-  it('onboarding discount above 50% needs approval (per option)', () => {
-    const out = generateBrief(acceptanceInput({ onboardingDiscountPct: { standard: 50, funded: 60 } }))
-    expect(out.policy.status).toBe('needs_approval')
-    expect(out.policy.items).toEqual(['Special Funded Offer Program onboarding discount 60% is above 50%'])
-    expect(out.canGenerate).toBe(false)
+  it('one-time fees with a 0 quantity are dropped', () => {
+    const out = generateBrief(acceptanceInput({ oneTimeFees: [ONBOARDING, { ...SMS, qty: 0 }] }))
+    expect(out.result.options[0].oneTimeFees.lines).toEqual([ONBOARDING])
   })
 
-  it('each option carries its own onboarding discount', () => {
-    const out = generateBrief(acceptanceInput({ onboardingDiscountPct: { standard: 20, funded: 50 } }))
-    const [std, funded] = out.result.options
-    expect(std.onboarding).toEqual({ list: 5000, discountPct: 20, discountAmount: 1000, total: 4000 })
-    expect(funded.onboarding).toEqual({ list: 5000, discountPct: 50, discountAmount: 2500, total: 2500 })
-    expect(std.dueAtSignature).toBe(4000 + 16932)
-    expect(funded.dueAtSignature).toBe(2500)
-    expect(out.text).toContain('      discount_pct: 20%\n      discount_amount: $1,000\n      total: $4,000\n    due_at_signature: $20,932')
+  it('discount is on the sum of one-time fees, rounded to whole units', () => {
+    const out = generateBrief(acceptanceInput({
+      oneTimeFees: [{ product: 'Onboarding (Lite)', qty: 1, unitPrice: 2999 }, { product: 'SMS Credits (6k)', qty: 1, unitPrice: 333 }],
+      oneTimeDiscountPct: { standard: 15, funded: 15 },
+    }))
+    // (2999 + 333) × 15% = 499.8 → 500
+    expect(out.result.options[0].oneTimeFees).toMatchObject({ list: 3332, discountAmount: 500, total: 2832 })
+  })
+
+  it('onboarding names', () => {
+    expect(briefOnboardingName('Onboarding Standard')).toBe('Onboarding (Standard)')
+    expect(briefOnboardingName('Onboarding Premium')).toBe('Onboarding (Premium)')
+    expect(briefOnboardingName('Custom setup')).toBe('Custom setup')
   })
 
   it('Funded is not allowed when the access date is on or after the school year start', () => {
@@ -217,11 +266,11 @@ describe('PROPOSAL BRIEF', () => {
     const out = generateBrief(acceptanceInput({
       currency: 'GBP',
       lines: [{ product: 'Supervise 3 (Elite)', qty: 750, unitPrice: 23 }],
-      onboardingList: 4500,
+      oneTimeFees: [{ product: 'Onboarding (Standard)', qty: 1, unitPrice: 4500 }],
     }))
     expect(out.text).toContain('  currency: GBP\n')
     expect(out.text).toContain('{product: Supervise 3 (Elite), qty: 750, unit_price: £23.00, annual: £17,250}')
-    expect(out.text).toContain('      list: £4,500\n')
+    expect(out.text).toContain('{product: Onboarding (Standard), qty: 1, unit_price: £4,500.00, list: £4,500}')
     expect(money(22500, 'GBP')).toBe('£22,500')
     expect(unitMoney(23, 'GBP')).toBe('£23.00')
   })
@@ -243,8 +292,8 @@ describe('PROPOSAL BRIEF', () => {
   })
 
   it('expiry must be within 30 days of the proposal date', () => {
-    expect(generateBrief(acceptanceInput({ expiryDate: '2026-11-20' })).missing).toEqual([])
-    const late = generateBrief(acceptanceInput({ expiryDate: '2026-11-21' }))
+    expect(generateBrief(acceptanceInput({ expiryDate: '2026-11-21' })).missing).toEqual([])
+    const late = generateBrief(acceptanceInput({ expiryDate: '2026-11-22' }))
     expect(late.missing).toEqual(['Expiry date (within 30 days of the proposal date)'])
     expect(late.canGenerate).toBe(false)
   })
@@ -253,7 +302,7 @@ describe('PROPOSAL BRIEF', () => {
     const base = acceptanceInput()
     const out = generateBrief({ ...base, rollout: { ...base.rollout, signByDate: '2026-11-15' } })
     expect(out.missing).toEqual([])
-    expect(out.text).toContain('  expiry_date: 31 October 2026\n')
+    expect(out.text).toContain('  expiry_date: 29 October 2026\n')
     expect(out.text).toContain('  sign_by: By 15 Nov 2026\n')
 
     const early = generateBrief({ ...base, rollout: { ...base.rollout, signByDate: '2026-10-01' } })
