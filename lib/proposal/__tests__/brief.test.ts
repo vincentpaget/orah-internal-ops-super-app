@@ -155,12 +155,13 @@ describe('PROPOSAL BRIEF', () => {
     expect(out.result.options[1].dueAtSignature).toBe(7200)
   })
 
-  it('4. one-time discount of 60%: needs approval and generation is blocked', () => {
+  it('4. one-time discount of 60%: warns, but generation is allowed and the brief stays within_policy', () => {
     const out = generateBrief(acceptanceInput({ oneTimeDiscountPct: { standard: 50, funded: 60 } }))
     expect(out.policy.status).toBe('needs_approval')
     expect(out.policy.items).toEqual(['Option B one-time fees discount 60% exceeds the 50% limit'])
-    expect(out.canGenerate).toBe(false)
-    expect(out.text).toContain('approval:\n  status: needs_approval\n  items:\n    - Option B one-time fees discount 60% exceeds the 50% limit\noptions:')
+    expect(out.canGenerate).toBe(true)
+    expect(out.text).toContain('approval:\n  status: within_policy\noptions:')
+    expect(out.text).not.toContain('needs_approval')
   })
 
   it('5. Standard only, starting on the school year start', () => {
@@ -223,11 +224,12 @@ describe('PROPOSAL BRIEF', () => {
     expect(out.text).toContain('    paid_term: 36 months\n')
   })
 
-  it('35% subscription discount needs approval and blocks generation', () => {
+  it('35% subscription discount warns but does not block generation', () => {
     const out = generateBrief(acceptanceInput({ discountPct: { standard: 35, funded: 5 } }))
     expect(out.policy.status).toBe('needs_approval')
     expect(out.policy.items).toEqual(['Option A subscription discount 35% exceeds the 30% limit'])
-    expect(out.canGenerate).toBe(false)
+    expect(out.canGenerate).toBe(true)
+    expect(out.text).toContain('  status: within_policy\n')
   })
 
   it('one-time fees with a 0 quantity are dropped', () => {

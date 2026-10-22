@@ -331,12 +331,12 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
           ))}
         </div>
         {policy.status === 'needs_approval' && (
-          <Notice tone="error">
-            <strong>Needs approval:</strong>
+          <Notice tone="warn">
+            <strong>Above the Discount &amp; Terms Policy limits:</strong>
             <ul style={{ margin: '6px 0', paddingLeft: 18 }}>
               {policy.items.map(i => <li key={i}>{i}</li>)}
             </ul>
-            Needs approval from {DISCOUNT_POLICY.approvers}. See the Discount &amp; Terms Policy.
+            Make sure you have approval from {DISCOUNT_POLICY.approvers} before sending this proposal.
           </Notice>
         )}
       </Section>
@@ -409,7 +409,7 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
           </Notice>
         )}
         {policy.status === 'needs_approval' && (
-          <Notice tone="error">Needs approval from {DISCOUNT_POLICY.approvers}. See the Discount &amp; Terms Policy.</Notice>
+          <Notice tone="warn">Discounts are above the policy limits. Make sure you have approval from {DISCOUNT_POLICY.approvers} before sending this proposal.</Notice>
         )}
 
         <a
@@ -458,7 +458,7 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
           />
         ) : (
           <div style={{ marginTop: 14, padding: 24, textAlign: 'center', border: '1px dashed var(--border-strong)', borderRadius: 8, color: 'var(--fg-3)', fontSize: 13 }}>
-            The brief appears here once everything above is complete and within policy.
+            The brief appears here once everything above is complete.
           </div>
         )}
       </Section>
