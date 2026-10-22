@@ -2,14 +2,17 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import type { ProposalOpp } from '@/app/api/pricing/opportunities/route'
-import type { Quote, QuoteInput } from '@/lib/pricing/calc'
+import { MIN_STUDENTS, type Quote, type QuoteInput } from '@/lib/pricing/calc'
+import { ONE_TIME_FEES, type CurrencyCode } from '@/lib/pricing/data'
 import { DISCOUNT_POLICY, DISCOUNT_POLICY_URL, OFFER_LABELS, type OfferType } from '@/lib/proposal/config'
 import { generateBrief, EXPIRY_MAX_DAYS, type BriefInput } from '@/lib/proposal/brief'
 import { lineAnnual, type ComputedOffer, type LineItem } from '@/lib/proposal/calc'
-import { addDays, firstOfNextMonth, formatLong, formatShort, todayIso } from '@/lib/proposal/dates'
+import { addDays, formatLong, formatShort } from '@/lib/proposal/dates'
 import { money, months, unitMoney } from '@/lib/proposal/format'
 import { quoteToLines, quoteToOneTimeFees } from '@/lib/proposal/quoteToLines'
+import type { OfferDraft } from './draft'
 import OpportunityPicker from './OpportunityPicker'
+import { CurrencySelect } from '../Controls'
 import { Field, GRID, INPUT, Notice, TextInput } from './ui'
 import styles from '../pricing.module.css'
 
@@ -22,8 +25,21 @@ const PANEL: React.CSSProperties = {
   marginBottom: 20,
 }
 
-/** Default proposal validity; the policy maximum is EXPIRY_MAX_DAYS. */
-const EXPIRY_DEFAULT_DAYS = 7
+const HEADER_BTN: React.CSSProperties = { padding: '9px 16px', borderRadius: 6, border: '2px solid var(--navy-900)', background: 'var(--bg)', color: 'var(--navy-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }
+
+function QtyInput({ value, min, label, onChange }: { value: string; min: number; label: string; onChange: (v: string) => void }) {
+  return (
+    <input
+      type="number"
+      className={styles.qtyInput}
+      min={min}
+      value={value}
+      aria-label={label}
+      onChange={e => onChange(e.target.value)}
+      style={{ ...INPUT, width: 90, padding: '4px 8px', fontSize: 13, textAlign: 'right' }}
+    />
+  )
+}
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
@@ -48,45 +64,47 @@ function parsePct(s: string): number {
 
 const pad2 = (n: number) => String(n).padStart(2, '0')
 
-export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quote; quoteInput: QuoteInput; onBack: () => void }) {
-  const today = todayIso()
+export interface QtyEdits {
+  /** Raw student count input, so typing isn't clamped mid-keystroke */
+  studentInput: string
+  onStudents: (value: string) => void
+  onAddonQty: (addonId: string, qty: number) => void
+  onOneTimeQty: (feeId: string, qty: number) => void
+  onCurrency: (currency: CurrencyCode) => void
+}
+
+export default function OfferBuilder({ quote, quoteInput, draft, onDraftChange, edits, notices, onDismissNotices, onBack }: {
+  quote: Quote
+  quoteInput: QuoteInput
+  draft: OfferDraft
+  onDraftChange: (patch: Partial<OfferDraft>) => void
+  edits: QtyEdits
+  /** Warnings from loading an existing proposal */
+  notices: string[]
+  onDismissNotices: () => void
+  onBack: () => void
+}) {
   const currency = quoteInput.currency
   const lines = useMemo(() => quoteToLines(quote, quoteInput), [quote, quoteInput])
   const oneTimeFees = useMemo(() => quoteToOneTimeFees(quote), [quote])
 
-  // Step 2 — opportunity
-  const [opp, setOpp] = useState<ProposalOpp | null>(null)
-  const [schoolName, setSchoolName] = useState('')
-  const [contactName, setContactName] = useState('')
-  const [contactTitle, setContactTitle] = useState('')
-  const [sis, setSis] = useState('')
-  const [repName, setRepName] = useState('')
-  const [repEmail, setRepEmail] = useState('')
+  const {
+    opp, schoolName, contactName, contactTitle, sis, repName, repEmail,
+    proposalDate, expiryDate, syMonth, termYears, startDate,
+    include, recommended, discount, oneTimeDiscount,
+    kickoff, setupWindow, trainingWindow, notes, signBy, goLive,
+  } = draft
+  const set = <K extends keyof OfferDraft>(key: K) => (value: OfferDraft[K]) => onDraftChange({ [key]: value } as Partial<OfferDraft>)
 
-  // Step 3 — deal details
-  const [proposalDate, setProposalDate] = useState(today)
-  const [expiryDate, setExpiryDate] = useState(addDays(today, EXPIRY_DEFAULT_DAYS))
-  const [syMonth, setSyMonth] = useState(7)
-  const [termYears, setTermYears] = useState(2)
-  // Always the 1st of a month: the date picker snaps whatever day is picked back to the 1st.
-  const [startDate, setStartDate] = useState(firstOfNextMonth(today))
-
-  // Step 4 — offers
-  const [include, setInclude] = useState<Record<OfferType, boolean>>({ standard: true, funded: false })
-  const [recommended, setRecommended] = useState<OfferType>('funded')
-
-  // Step 5 — discounts
-  const [discount, setDiscount] = useState<Record<OfferType, string>>({ standard: '0', funded: '0' })
-  // One discount per offer for all one-time fees (onboarding + any others)
-  const [oneTimeDiscount, setOneTimeDiscount] = useState<Record<OfferType, string>>({ standard: '0', funded: '0' })
-
-  // Step 6 — rollout
-  const [kickoff, setKickoff] = useState('')
-  const [setupWindow, setSetupWindow] = useState('')
-  const [trainingWindow, setTrainingWindow] = useState('')
-  const [notes, setNotes] = useState('')
-  const [signBy, setSignBy] = useState<string | null>(null) // null = follow the expiry date
-  const [goLive, setGoLive] = useState<string | null>(null) // null = follow the default
+  // Section 1 rows → calculator ids, for the quantity inputs. Flat add-ons and onboarding aren't editable here.
+  const addonIdFor = (i: number) => {
+    const line = quote.addonLines[i]
+    return line?.perStudent ? quote.tier.addons.find(a => a.name === line.name)?.id : undefined
+  }
+  const feeIdFor = (i: number) => {
+    const line = quote.oneTimeLines[i]
+    return line && ONE_TIME_FEES.find(f => f.name === line.name)?.id
+  }
 
   const [copied, setCopied] = useState(false)
   useEffect(() => {
@@ -96,13 +114,15 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
   }, [copied])
 
   function selectOpp(o: ProposalOpp) {
-    setOpp(o)
-    setSchoolName(o.accountName)
-    setContactName(o.contact?.name ?? '')
-    setContactTitle(o.contact?.title ?? '')
-    setSis(o.sis ?? '')
-    setRepName(o.ownerName)
-    setRepEmail(o.ownerEmail)
+    onDraftChange({
+      opp: o,
+      schoolName: o.accountName,
+      contactName: o.contact?.name ?? '',
+      contactTitle: o.contact?.title ?? '',
+      sis: o.sis ?? '',
+      repName: o.ownerName,
+      repEmail: o.ownerEmail,
+    })
   }
 
   const schoolYearStart = `${pad2(syMonth)}-01`
@@ -175,17 +195,37 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--navy-900)', margin: 0 }}>Generate Proposal Offer</h1>
           <p style={{ margin: '4px 0 0', color: 'var(--fg-3)', fontSize: 14 }}>Build the PROPOSAL BRIEF to paste into Claude.</p>
         </div>
-        <button
-          type="button"
-          className={styles.secondaryBtn}
-          onClick={onBack}
-          style={{ padding: '9px 16px', borderRadius: 6, border: '2px solid var(--navy-900)', background: 'var(--bg)', color: 'var(--navy-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}
-        >
+        <button type="button" className={styles.secondaryBtn} onClick={onBack} style={HEADER_BTN}>
           ← Back to calculator
         </button>
       </div>
 
-      <Section n={1} title="Pricing from calculator">
+      {notices.length > 0 && (
+        <div style={{ marginBottom: 20 }}>
+          <Notice tone="info">
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
+              <div>
+                <strong>Loaded from an existing proposal.</strong> Proposal and expiry dates are reset to today. Check these:
+                <ul style={{ margin: '6px 0 0', paddingLeft: 18 }}>
+                  {notices.map(n => <li key={n}>{n}</li>)}
+                </ul>
+              </div>
+              <button type="button" onClick={onDismissNotices} aria-label="Dismiss" style={{ border: 'none', background: 'none', color: 'inherit', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}>×</button>
+            </div>
+          </Notice>
+        </div>
+      )}
+
+      <Section
+        n={1}
+        title="Pricing from calculator"
+        aside={
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: 'var(--fg-2)' }}>
+            Currency
+            <CurrencySelect value={currency} onChange={edits.onCurrency} />
+          </label>
+        }
+      >
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
           <thead>
             <tr style={{ color: 'var(--fg-3)', textAlign: 'left' }}>
@@ -196,10 +236,16 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
             </tr>
           </thead>
           <tbody>
-            {lines.map(l => (
+            {lines.map((l, i) => (
               <tr key={l.product} style={{ borderTop: '1px solid var(--border)' }}>
                 <td style={{ padding: '7px 0' }}>{l.product}</td>
-                <td style={{ padding: '7px 0', textAlign: 'right' }}>{l.qty}</td>
+                <td style={{ padding: '7px 0', textAlign: 'right' }}>
+                  {i === 0 ? (
+                    <QtyInput value={edits.studentInput} min={MIN_STUDENTS} label={`${l.product} students`} onChange={edits.onStudents} />
+                  ) : addonIdFor(i - 1) ? (
+                    <QtyInput value={String(l.qty)} min={1} label={`${l.product} quantity`} onChange={v => edits.onAddonQty(addonIdFor(i - 1)!, parseInt(v) || 0)} />
+                  ) : l.qty}
+                </td>
                 <td style={{ padding: '7px 0', textAlign: 'right' }}>{unitMoney(l.unitPrice, currency)}</td>
                 <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(lineAnnual(l))}</td>
               </tr>
@@ -208,17 +254,30 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
               <td style={{ padding: '7px 0' }} colSpan={3}>List total</td>
               <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(result.listTotal)}</td>
             </tr>
-            {oneTimeFees.map(l => (
+            {oneTimeFees.map((l, i) => (
               <tr key={l.product}>
                 <td style={{ padding: '7px 0' }}>{l.product} (one-time)</td>
-                <td style={{ padding: '7px 0', textAlign: 'right' }}>{l.qty}</td>
+                <td style={{ padding: '7px 0', textAlign: 'right' }}>
+                  {feeIdFor(i - 1) ? (
+                    <QtyInput value={String(l.qty)} min={1} label={`${l.product} quantity`} onChange={v => edits.onOneTimeQty(feeIdFor(i - 1)!, Math.max(1, parseInt(v) || 1))} />
+                  ) : l.qty}
+                </td>
                 <td style={{ padding: '7px 0', textAlign: 'right' }}>{unitMoney(l.unitPrice, currency)}</td>
                 <td style={{ padding: '7px 0', textAlign: 'right' }}>{m(lineAnnual(l))}</td>
               </tr>
             ))}
           </tbody>
         </table>
-        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>Currency: {currency}. To change products or quantities, go back to the calculator.</div>
+        <Notice tone="warn">
+          <strong>Check the products, quantities and currency are correct before you continue.</strong>
+        </Notice>
+        <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 8 }}>
+          Edit quantities and currency here. To add or remove products, or change the tier,{' '}
+          <button type="button" onClick={onBack} style={{ border: 'none', background: 'none', padding: 0, color: 'var(--blue-500)', cursor: 'pointer', fontSize: 12, fontFamily: 'inherit' }}>
+            go back to the calculator
+          </button>
+          . Everything you&apos;ve entered below is kept.
+        </div>
       </Section>
 
       <Section n={2} title="Select the opportunity">
@@ -227,15 +286,15 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
           <>
             {!opp.contact && <Notice tone="warn">No primary contact on this opportunity</Notice>}
             <div style={{ ...GRID, marginTop: 16 }}>
-              <Field label="School name"><TextInput value={schoolName} onChange={setSchoolName} /></Field>
-              <Field label="SIS"><TextInput value={sis} onChange={setSis} /></Field>
-              <Field label="Contact name"><TextInput value={contactName} onChange={setContactName} /></Field>
-              <Field label="Contact title (optional)"><TextInput value={contactTitle} onChange={setContactTitle} /></Field>
-              <Field label="Rep name"><TextInput value={repName} onChange={setRepName} /></Field>
-              <Field label="Rep email"><TextInput type="email" value={repEmail} onChange={setRepEmail} /></Field>
+              <Field label="School name"><TextInput value={schoolName} onChange={set('schoolName')} /></Field>
+              <Field label="SIS"><TextInput value={sis} onChange={set('sis')} /></Field>
+              <Field label="Contact name"><TextInput value={contactName} onChange={set('contactName')} /></Field>
+              <Field label="Contact title (optional)"><TextInput value={contactTitle} onChange={set('contactTitle')} /></Field>
+              <Field label="Rep name"><TextInput value={repName} onChange={set('repName')} /></Field>
+              <Field label="Rep email"><TextInput type="email" value={repEmail} onChange={set('repEmail')} /></Field>
             </div>
             <div style={{ fontSize: 12, color: 'var(--fg-3)', marginTop: 10 }}>
-              Salesforce: {opp.name} ({opp.id}) · {opp.stage}
+              Salesforce: {opp.name} ({opp.id}){opp.stage && ` · ${opp.stage}`}
             </div>
           </>
         )}
@@ -244,26 +303,26 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
       <Section n={3} title="Deal details">
         <div style={GRID}>
           <Field label="Proposal date">
-            <TextInput type="date" value={proposalDate} onChange={setProposalDate} />
+            <TextInput type="date" value={proposalDate} onChange={set('proposalDate')} />
           </Field>
           <Field label="Expiry date" hint={`Max ${EXPIRY_MAX_DAYS} days after the proposal date`}>
-            <TextInput type="date" value={expiryDate} min={proposalDate} max={proposalDate ? addDays(proposalDate, EXPIRY_MAX_DAYS) : undefined} onChange={setExpiryDate} />
+            <TextInput type="date" value={expiryDate} min={proposalDate} max={proposalDate ? addDays(proposalDate, EXPIRY_MAX_DAYS) : undefined} onChange={set('expiryDate')} />
           </Field>
-          <Field label="Currency" hint="From the calculator">
+          <Field label="Currency" hint="Change it in step 1">
             <TextInput value={currency} onChange={() => {}} readOnly style={{ background: 'var(--bg-subtle)' }} />
           </Field>
           <Field label="School year start" hint="Starts on the 1st of the month">
-            <select value={syMonth} onChange={e => setSyMonth(parseInt(e.target.value))} style={INPUT}>
+            <select value={syMonth} onChange={e => onDraftChange({ syMonth: parseInt(e.target.value) })} style={INPUT}>
               {MONTH_NAMES.map((name, i) => <option key={name} value={i + 1}>{name}</option>)}
             </select>
           </Field>
           <Field label="Term length">
-            <select value={termYears} onChange={e => setTermYears(parseInt(e.target.value))} style={INPUT}>
+            <select value={termYears} onChange={e => onDraftChange({ termYears: parseInt(e.target.value) })} style={INPUT}>
               {[1, 2, 3].map(y => <option key={y} value={y}>{y} year{y > 1 ? 's' : ''}</option>)}
             </select>
           </Field>
           <Field label="Start / access date" hint="Always the 1st of the month">
-            <TextInput type="date" value={startDate} onChange={v => setStartDate(v ? `${v.slice(0, 8)}01` : '')} />
+            <TextInput type="date" value={startDate} onChange={v => onDraftChange({ startDate: v ? `${v.slice(0, 8)}01` : '' })} />
           </Field>
         </div>
         {startDate && (
@@ -276,14 +335,14 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
       <Section n={4} title="Offers to include">
         <OfferCheckbox
           checked={include.standard}
-          onChange={v => setInclude(p => ({ ...p, standard: v }))}
+          onChange={v => onDraftChange({ include: { ...include, standard: v } })}
           title={`Standard: “${OFFER_LABELS.standard.tagline}”`}
           desc="Access and billing from the start date. A pro-rated stub until the school year start, then annual."
         />
         <OfferCheckbox
           checked={include.funded && !fundedDisabled}
           disabled={fundedDisabled}
-          onChange={v => setInclude(p => ({ ...p, funded: v }))}
+          onChange={v => onDraftChange({ include: { ...include, funded: v } })}
           title={`Special Funded Offer Program: “${OFFER_LABELS.funded.tagline}”`}
           desc="Free access from the access date, billing from the next school year start."
         />
@@ -295,7 +354,7 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
               <button
                 key={t}
                 type="button"
-                onClick={() => setRecommended(t)}
+                onClick={() => onDraftChange({ recommended: t })}
                 className={styles.toggleBtn}
                 style={{
                   padding: '6px 12px', borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'inherit',
@@ -321,10 +380,10 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <Field label="Subscription discount %" hint={`${m(o.discountAmount)} off · max ${DISCOUNT_POLICY.subscriptionMaxPct}%`}>
-                  <TextInput type="number" min={0} max={100} step={1} value={discount[o.type]} onChange={v => setDiscount(p => ({ ...p, [o.type]: v.replace(/\D/g, '') }))} />
+                  <TextInput type="number" min={0} max={100} step={1} value={discount[o.type]} onChange={v => onDraftChange({ discount: { ...discount, [o.type]: v.replace(/\D/g, '') } })} />
                 </Field>
                 <Field label="One-time fees discount %" hint={`${m(o.oneTimeFees.discountAmount)} off · max ${DISCOUNT_POLICY.oneTimeMaxPct}%`}>
-                  <TextInput type="number" min={0} max={100} step={1} value={oneTimeDiscount[o.type]} onChange={v => setOneTimeDiscount(p => ({ ...p, [o.type]: v.replace(/\D/g, '') }))} />
+                  <TextInput type="number" min={0} max={100} step={1} value={oneTimeDiscount[o.type]} onChange={v => onDraftChange({ oneTimeDiscount: { ...oneTimeDiscount, [o.type]: v.replace(/\D/g, '') } })} />
                 </Field>
               </div>
             </div>
@@ -365,24 +424,24 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
         <div style={GRID}>
           <Field label="Sign-by date" hint={signBy === null ? 'Defaults to the expiry date; can be later (accepting the offer, before the contract)' : undefined}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <TextInput type="date" value={signBy ?? expiryDate} min={proposalDate} onChange={v => setSignBy(v)} />
+              <TextInput type="date" value={signBy ?? expiryDate} min={proposalDate} onChange={set('signBy')} />
               {signBy !== null && (
-                <button type="button" onClick={() => setSignBy(null)} style={{ border: 'none', background: 'none', color: 'var(--blue-500)', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <button type="button" onClick={() => onDraftChange({ signBy: null })} style={{ border: 'none', background: 'none', color: 'var(--blue-500)', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
                   Reset
                 </button>
               )}
             </div>
           </Field>
           <Field label="Onboarding kickoff">
-            <TextInput type="date" value={kickoff} onChange={setKickoff} />
+            <TextInput type="date" value={kickoff} onChange={set('kickoff')} />
           </Field>
-          <Field label="Integration and setup window"><TextInput value={setupWindow} onChange={setSetupWindow} placeholder="Nov–Dec 2026" /></Field>
-          <Field label="Training window"><TextInput value={trainingWindow} onChange={setTrainingWindow} placeholder="Jan–Jun 2027" /></Field>
+          <Field label="Integration and setup window"><TextInput value={setupWindow} onChange={set('setupWindow')} placeholder="Nov–Dec 2026" /></Field>
+          <Field label="Training window"><TextInput value={trainingWindow} onChange={set('trainingWindow')} placeholder="Jan–Jun 2027" /></Field>
           <Field label="Go-live date" hint={goLive === null ? 'Defaults to the Funded billing start, or the Standard start date' : undefined}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <TextInput type="date" value={goLive ?? defaultGoLive} onChange={v => setGoLive(v)} />
+              <TextInput type="date" value={goLive ?? defaultGoLive} onChange={set('goLive')} />
               {goLive !== null && (
-                <button type="button" onClick={() => setGoLive(null)} style={{ border: 'none', background: 'none', color: 'var(--blue-500)', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
+                <button type="button" onClick={() => onDraftChange({ goLive: null })} style={{ border: 'none', background: 'none', color: 'var(--blue-500)', cursor: 'pointer', fontSize: 12, whiteSpace: 'nowrap' }}>
                   Reset
                 </button>
               )}
@@ -391,7 +450,7 @@ export default function OfferBuilder({ quote, quoteInput, onBack }: { quote: Quo
         </div>
         <div style={{ marginTop: 14 }}>
           <Field label="Implementation notes (optional)">
-            <textarea value={notes} rows={3} onChange={e => setNotes(e.target.value)} style={{ ...INPUT, width: '100%', resize: 'vertical' }} />
+            <textarea value={notes} rows={3} onChange={e => onDraftChange({ notes: e.target.value })} style={{ ...INPUT, width: '100%', resize: 'vertical' }} />
           </Field>
         </div>
       </Section>

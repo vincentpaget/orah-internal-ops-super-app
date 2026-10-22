@@ -1,10 +1,14 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { ONE_TIME_FEES, TIERS, type CurrencyCode, type OneTimeFee, type Platform, type TierAddon } from '@/lib/pricing/data'
 import { MIN_STUDENTS, calculateQuote, currencyName, currencySymbol, findTier, formatAddonPrice, formatMoney, getPrice, quoteToText, type Quote } from '@/lib/pricing/calc'
 import { CurrencySelect, PageHeader, PlatformToggle } from './Controls'
+import { parseBrief } from '@/lib/proposal/parseBrief'
+import { todayIso } from '@/lib/proposal/dates'
+import { draftFromBrief, emptyDraft, type OfferDraft } from './offer/draft'
 import OfferBuilder from './offer/OfferBuilder'
+import { INPUT, Notice } from './offer/ui'
 import styles from './pricing.module.css'
 
 /** Per add-on selection. `all` = quantity follows the student count. */
@@ -12,6 +16,24 @@ interface AddonSelection {
   qty: number
   all: boolean
 }
+
+/** In-progress calculator + proposal, kept for the browser tab so a refresh or tab switch doesn't lose it. */
+const STORAGE_KEY = 'pricing-calculator-draft-v1'
+
+interface Saved {
+  platform: Platform
+  currency: CurrencyCode
+  studentInput: string
+  tierId: string | null
+  selections: Record<string, AddonSelection>
+  oneTimeFees: Record<string, number>
+  draft: OfferDraft
+  offerMode: boolean
+  /** The generator has been opened (or a proposal loaded) since the last clear */
+  proposalStarted: boolean
+}
+
+const OUTLINE_BTN: React.CSSProperties = { padding: '7px 14px', borderRadius: 6, border: '2px solid var(--navy-900)', background: 'var(--bg)', color: 'var(--navy-900)', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }
 
 const PANEL: React.CSSProperties = {
   background: 'var(--bg)',
@@ -225,16 +247,49 @@ function Summary({ quote, currency, copied, onCopy }: { quote: Quote | null; cur
   )
 }
 
+function readSaved(): Saved | null {
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY)
+    return raw ? JSON.parse(raw) as Saved : null
+  } catch {
+    return null // storage unavailable or corrupt: start fresh
+  }
+}
+
+const noopSubscribe = () => () => {}
+
+/**
+ * The server renders a blank calculator; in the browser it remounts with the tab's saved draft,
+ * so the first client render still matches the server and only the browser instance saves.
+ */
 export default function PricingCalculator() {
-  const [platform, setPlatform] = useState<Platform>('supervise')
-  const [currency, setCurrency] = useState<CurrencyCode>('USD')
-  const [studentInput, setStudentInput] = useState('500')
-  const [tierId, setTierId] = useState<string | null>(null)
-  const [selections, setSelections] = useState<Record<string, AddonSelection>>({})
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false)
+  return <Calculator key={String(isClient)} saved={isClient ? readSaved() : null} canSave={isClient} />
+}
+
+function Calculator({ saved, canSave }: { saved: Saved | null; canSave: boolean }) {
+  const [platform, setPlatform] = useState<Platform>(saved?.platform ?? 'supervise')
+  const [currency, setCurrency] = useState<CurrencyCode>(saved?.currency ?? 'USD')
+  const [studentInput, setStudentInput] = useState(saved?.studentInput ?? '500')
+  const [tierId, setTierId] = useState<string | null>(saved?.tierId ?? null)
+  const [selections, setSelections] = useState<Record<string, AddonSelection>>(saved?.selections ?? {})
   /** one-time fee id → packs; plan-independent, so kept across tier/platform changes */
-  const [oneTimeFees, setOneTimeFees] = useState<Record<string, number>>({})
+  const [oneTimeFees, setOneTimeFees] = useState<Record<string, number>>(saved?.oneTimeFees ?? {})
   const [copied, setCopied] = useState(false)
-  const [offerMode, setOfferMode] = useState(false)
+  const [offerMode, setOfferMode] = useState(saved?.offerMode ?? false)
+  const [proposalStarted, setProposalStarted] = useState(saved?.proposalStarted ?? false)
+  const [draft, setDraft] = useState<OfferDraft>(() => ({ ...emptyDraft(todayIso()), ...saved?.draft }))
+  /** Warnings from loading an existing proposal, shown in the offer builder */
+  const [notices, setNotices] = useState<string[]>([])
+  const [loadOpen, setLoadOpen] = useState(false)
+  const [loadText, setLoadText] = useState('')
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!canSave) return
+    const next: Saved = { platform, currency, studentInput, tierId, selections, oneTimeFees, draft, offerMode, proposalStarted }
+    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next)) } catch {}
+  }, [canSave, platform, currency, studentInput, tierId, selections, oneTimeFees, draft, offerMode, proposalStarted])
 
   const rawStudents = parseInt(studentInput) || 0
   const studentCount = Math.max(MIN_STUDENTS, rawStudents)
@@ -304,15 +359,124 @@ export default function PricingCalculator() {
     setCopied(true)
   }
 
+  const hasWork = tierId != null || draft.opp != null
+
+  function clearProposalData() {
+    if (hasWork && !window.confirm('Clear the calculator and proposal details?')) return
+    setPlatform('supervise')
+    setCurrency('USD')
+    setStudentInput('500')
+    setTierId(null)
+    setSelections({})
+    setOneTimeFees({})
+    setDraft(emptyDraft(todayIso()))
+    setNotices([])
+    setProposalStarted(false)
+    setOfferMode(false)
+    setLoadOpen(false)
+    try { sessionStorage.removeItem(STORAGE_KEY) } catch {}
+    window.scrollTo(0, 0)
+  }
+
+  function loadProposal() {
+    const today = todayIso()
+    let parsed
+    try {
+      parsed = parseBrief(loadText, today)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : String(err))
+      return
+    }
+    if (hasWork && !window.confirm('Replace what\'s in the calculator and proposal with the loaded proposal?')) return
+    const c = parsed.calculator
+    const loadedTier = findTier(c.platform, c.tierId)
+    const loadedSelections: Record<string, AddonSelection> = {}
+    for (const [id, qty] of Object.entries(c.addons)) {
+      const addon = loadedTier?.addons.find(a => a.id === id)
+      loadedSelections[id] = { qty, all: !!addon?.perStudent && !addon.includedInTier && qty === c.studentCount }
+    }
+    setPlatform(c.platform)
+    setCurrency(c.currency)
+    setStudentInput(String(c.studentCount))
+    setTierId(c.tierId)
+    setSelections(loadedSelections)
+    setOneTimeFees(c.oneTimeFees)
+    setDraft(draftFromBrief(parsed.details, today))
+    setNotices(parsed.warnings)
+    setProposalStarted(true)
+    setLoadOpen(false)
+    setLoadText('')
+    setLoadError(null)
+    setOfferMode(true)
+    window.scrollTo(0, 0)
+  }
+
   if (offerMode && quote && quoteInput) {
-    return <OfferBuilder quote={quote} quoteInput={quoteInput} onBack={() => setOfferMode(false)} />
+    return (
+      <OfferBuilder
+        quote={quote}
+        quoteInput={quoteInput}
+        draft={draft}
+        onDraftChange={patch => setDraft(d => ({ ...d, ...patch }))}
+        edits={{
+          studentInput,
+          onStudents: setStudentInput,
+          onCurrency: setCurrency,
+          onAddonQty: (id, qty) => { const a = tier?.addons.find(x => x.id === id); if (a) setAddonQty(a, qty) },
+          onOneTimeQty: (id, qty) => setOneTimeFees(prev => ({ ...prev, [id]: qty })),
+        }}
+        notices={notices}
+        onDismissNotices={() => setNotices([])}
+        onBack={() => { setOfferMode(false); window.scrollTo(0, 0) }}
+      />
+    )
   }
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
       <PageHeader title="Pricing Calculator" subtitle="Configure a plan and see list pricing in real time.">
+        <button type="button" className={`${styles.secondaryBtn} ${styles.noPrint}`} onClick={() => { setLoadOpen(o => !o); setLoadError(null) }} style={OUTLINE_BTN}>
+          Load existing proposal
+        </button>
+        {hasWork && (
+          <button type="button" className={`${styles.secondaryBtn} ${styles.noPrint}`} onClick={clearProposalData} style={OUTLINE_BTN}>
+            Clear Proposal Data
+          </button>
+        )}
         <CurrencySelect value={currency} onChange={setCurrency} />
       </PageHeader>
+
+      {loadOpen && (
+        <div className={styles.noPrint} style={{ ...PANEL, marginBottom: 20 }}>
+          <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 17, fontWeight: 700, color: 'var(--navy-900)', margin: '0 0 6px' }}>Load an existing proposal</h2>
+          <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--fg-3)' }}>
+            Paste the PROPOSAL BRIEF text you sent to Claude.
+          </p>
+          <textarea
+            value={loadText}
+            onChange={e => { setLoadText(e.target.value); setLoadError(null) }}
+            rows={10}
+            placeholder={'PROPOSAL BRIEF\nproposal:\n  school_name: …'}
+            aria-label="Proposal brief text"
+            style={{ ...INPUT, width: '100%', resize: 'vertical', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 12, lineHeight: 1.5 }}
+          />
+          {loadError && <Notice tone="error">{loadError}</Notice>}
+          <div style={{ display: 'flex', gap: 10, marginTop: 12, justifyContent: 'flex-end' }}>
+            <button type="button" className={styles.secondaryBtn} onClick={() => { setLoadOpen(false); setLoadError(null) }} style={OUTLINE_BTN}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              disabled={!loadText.trim()}
+              onClick={loadProposal}
+              style={{ ...OUTLINE_BTN, border: 'none', background: 'var(--navy-900)', color: '#fff', opacity: loadText.trim() ? 1 : 0.45, cursor: loadText.trim() ? 'pointer' : 'not-allowed' }}
+            >
+              Load proposal →
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={styles.calcLayout}>
         {/* Configuration */}
@@ -462,11 +626,11 @@ export default function PricingCalculator() {
           {quote && (
             <button
               type="button"
-              className={`${styles.primaryBtn} ${styles.noPrint}`}
-              onClick={() => { setOfferMode(true); window.scrollTo(0, 0) }}
-              style={{ display: 'block', width: '100%', marginTop: 16, padding: '14px 16px', borderRadius: 8, border: 'none', background: 'var(--blue-500)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
+              className={`${proposalStarted ? styles.continueBtn : styles.primaryBtn} ${styles.noPrint}`}
+              onClick={() => { setOfferMode(true); setProposalStarted(true); window.scrollTo(0, 0) }}
+              style={{ display: 'block', width: '100%', marginTop: 16, padding: '14px 16px', borderRadius: 8, border: 'none', background: proposalStarted ? 'var(--orange-700)' : 'var(--blue-500)', color: '#fff', fontWeight: 700, fontSize: 15, cursor: 'pointer', boxShadow: 'var(--shadow-1)' }}
             >
-              Generate Proposal Offer →
+              {proposalStarted ? 'Continue Proposal →' : 'Generate New Proposal →'}
             </button>
           )}
         </div>

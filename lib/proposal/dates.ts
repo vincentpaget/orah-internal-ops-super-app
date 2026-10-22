@@ -97,3 +97,13 @@ export function firstOfNextMonth(iso: string): string {
   const { y, m } = parse(iso)
   return addMonths(toIso({ y, m, d: 1 }), 1)
 }
+
+/** "21 October 2026" or "1 Nov 2026" → '2026-10-21'. Empty string if it doesn't parse. */
+export function parseDisplayDate(s: string): string {
+  const m = s.trim().match(/^(\d{1,2}) ([A-Za-z]+) (\d{4})$/)
+  if (!m) return ''
+  const month = MONTHS.findIndex(name => name.toLowerCase().startsWith(m[2].toLowerCase().slice(0, 3)))
+  const d = Number(m[1])
+  if (month < 0 || d < 1 || d > 31) return ''
+  return toIso({ y: Number(m[3]), m: month + 1, d })
+}

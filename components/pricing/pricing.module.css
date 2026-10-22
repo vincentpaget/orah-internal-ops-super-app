@@ -90,6 +90,9 @@
 .primaryBtn:hover {
   background: #001a2e !important;
 }
+.continueBtn:hover {
+  background: #8f4f0e !important;
+}
 .secondaryBtn:hover {
   background: var(--bg-subtle) !important;
 }
