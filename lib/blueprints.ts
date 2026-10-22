@@ -13,6 +13,12 @@ export interface Blueprint {
 
 export const BLUEPRINTS: Blueprint[] = [
   {
+    slug: 'lead-pipeline',
+    title: 'Lead Pipeline',
+    description: 'How a new lead is followed up, from first contact to qualified opportunity.',
+    file: 'lead-pipeline.html',
+  },
+  {
     slug: 'sales-new-business',
     title: 'Sales Process: New Business',
     description: 'How a new business opportunity moves from first conversation to Closed Won.',
