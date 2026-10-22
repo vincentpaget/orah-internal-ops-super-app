@@ -204,7 +204,7 @@ export default async function CsPipelinePage({ searchParams }: Props) {
     <div>
       <div style={{ marginBottom: 24 }}>
         <h1 style={{ fontSize: 28, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>
-          CS Pipeline
+          Pipeline Hygiene (EB)
         </h1>
         <p style={{ fontSize: 14, color: 'var(--fg-2)', marginTop: 6 }}>
           Renewal and expansion pipeline for {year}. Click a stage to filter.

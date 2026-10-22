@@ -1,6 +1,6 @@
 const TOOLS = [
-  { label: 'Pipeline Review',  envKey: 'PIPELINE_ALLOW',      color: 'var(--blue-500)',   bg: 'var(--blue-50)' },
-  { label: 'CS Pipeline',      envKey: 'CS_PIPELINE_ALLOW',   color: '#0891b2',           bg: '#e0f7fa' },
+  { label: 'Pipeline Hygiene (NB)',  envKey: 'PIPELINE_ALLOW',      color: 'var(--blue-500)',   bg: 'var(--blue-50)' },
+  { label: 'Pipeline Hygiene (EB)',  envKey: 'CS_PIPELINE_ALLOW',   color: '#0891b2',           bg: '#e0f7fa' },
   { label: 'CRM Dedupe',       envKey: 'DEDUPE_ALLOW',        color: 'var(--purple-500)', bg: 'var(--purple-50)' },
   { label: 'Event Leads',      envKey: 'EVENT_LEADS_ALLOW',   color: 'var(--green-600)',  bg: 'var(--green-50)' },
   { label: 'Campaign Setup',   envKey: 'CAMPAIGN_SETUP_ALLOW', color: 'var(--orange-700)', bg: 'var(--orange-50)' },

@@ -2,6 +2,7 @@ import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyJWT } from '@/lib/session'
 import AppShell from '@/components/layout/AppShell'
+import { lockedToolHrefs } from '@/lib/tools'
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies()
@@ -13,5 +14,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const userName = (session.name as string) || (session.email as string) || 'User'
 
-  return <AppShell userName={userName}>{children}</AppShell>
+  const email = (session.email as string | undefined) ?? ''
+
+  return <AppShell userName={userName} lockedHrefs={lockedToolHrefs(email)}>{children}</AppShell>
 }

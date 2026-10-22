@@ -1,66 +1,66 @@
 'use client'
 
-interface Tool {
-  href: string
-  title: string
-  description: string
-  color: string
-  bg: string
-  locked?: boolean
+import { useSyncExternalStore } from 'react'
+import { TOOL_GROUPS, TOOLS, type Tool } from '@/lib/tools'
+import { TOOL_ICONS, LockIcon } from '@/components/layout/ToolIcons'
+
+// Greeting uses the viewer's local time, so it's computed in the browser.
+// The server render says "Welcome" and the client swaps in the time of day.
+function greeting(): string {
+  const h = new Date().getHours()
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+const noopSubscribe = () => () => {}
+
+export function Greeting({ firstName }: { firstName: string }) {
+  const text = useSyncExternalStore(noopSubscribe, greeting, () => 'Welcome')
+  return <>{text}{firstName ? `, ${firstName}` : ''}</>
 }
 
-function ToolCard({ tool }: { tool: Tool }) {
+function ToolCard({ tool, locked }: { tool: Tool; locked: boolean }) {
+  const Icon = TOOL_ICONS[tool.icon]
   const inner = (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 }}>
-        <div style={{
-          width: 40, height: 40, borderRadius: 8,
-          background: tool.locked ? 'var(--bg-subtle, #f4f6f9)' : tool.bg,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <div style={{ width: 20, height: 20, background: tool.locked ? 'var(--fg-3)' : tool.color, borderRadius: 4, opacity: tool.locked ? 0.35 : 0.7 }} />
+      <div style={{
+        width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+        background: locked ? 'var(--bg-subtle)' : tool.bg,
+        display: 'grid', placeItems: 'center',
+      }}>
+        <Icon color={locked ? 'var(--fg-3)' : tool.color} />
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, color: locked ? 'var(--fg-3)' : 'var(--fg-1)' }}>
+          {tool.title}
+          {locked && <LockIcon color="var(--fg-3)" />}
         </div>
-        {tool.locked && (
-          <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-3)', background: 'var(--bg-subtle, #f4f6f9)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 7px', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-            Restricted
-          </span>
-        )}
-      </div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: tool.locked ? 'var(--fg-3)' : 'var(--fg-1)', marginBottom: 6 }}>
-        {tool.title}
-      </div>
-      <div style={{ fontSize: 13, color: 'var(--fg-3)', lineHeight: '1.5', opacity: tool.locked ? 0.6 : 1 }}>
-        {tool.description}
+        <div style={{ fontSize: 13, color: 'var(--fg-3)', lineHeight: 1.45, marginTop: 3, opacity: locked ? 0.7 : 1 }}>
+          {locked ? 'Restricted. Ask an admin for access.' : tool.description}
+        </div>
       </div>
     </>
   )
 
-  if (tool.locked) {
-    return (
-      <div style={{
-        display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
-        borderRadius: 10, padding: 24, boxShadow: 'var(--shadow-1)', cursor: 'default',
-      }}>
-        {inner}
-      </div>
-    )
+  const base = {
+    display: 'flex', alignItems: 'flex-start', gap: 12,
+    background: 'var(--bg)', border: '1px solid var(--border)',
+    borderRadius: 10, padding: '14px 16px', boxShadow: 'var(--shadow-1)',
+  } as const
+
+  if (locked) {
+    return <div title="You don't have access to this tool" style={{ ...base, background: 'transparent', boxShadow: 'none', cursor: 'default' }}>{inner}</div>
   }
 
   return (
     <a
       href={tool.href}
-      style={{
-        display: 'block', background: 'var(--bg)', border: '1px solid var(--border)',
-        borderRadius: 10, padding: 24, textDecoration: 'none',
-        boxShadow: 'var(--shadow-1)', transition: 'box-shadow 150ms, border-color 150ms',
-      }}
+      style={{ ...base, textDecoration: 'none', transition: 'box-shadow 150ms, border-color 150ms' }}
       onMouseEnter={e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-2)'
-        ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border-strong)'
+        e.currentTarget.style.boxShadow = 'var(--shadow-2)'
+        e.currentTarget.style.borderColor = 'var(--border-strong)'
       }}
       onMouseLeave={e => {
-        (e.currentTarget as HTMLElement).style.boxShadow = 'var(--shadow-1)'
-        ;(e.currentTarget as HTMLElement).style.borderColor = 'var(--border)'
+        e.currentTarget.style.boxShadow = 'var(--shadow-1)'
+        e.currentTarget.style.borderColor = 'var(--border)'
       }}
     >
       {inner}
@@ -68,10 +68,27 @@ function ToolCard({ tool }: { tool: Tool }) {
   )
 }
 
-export default function ToolGrid({ tools }: { tools: Tool[] }) {
+// Home page body: one section per tool group, each a grid of compact cards.
+export default function ToolGrid({ lockedHrefs }: { lockedHrefs: string[] }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-      {tools.map(tool => <ToolCard key={tool.href} tool={tool} />)}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
+      {TOOL_GROUPS.map(group => {
+        const tools = TOOLS.filter(t => t.group === group.key)
+        if (tools.length === 0) return null
+        return (
+          <section key={group.key}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+              <h2 style={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--navy-900)', margin: 0 }}>
+                {group.label}
+              </h2>
+              <span style={{ fontSize: 13, color: 'var(--fg-3)' }}>{group.description}</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+              {tools.map(t => <ToolCard key={t.href} tool={t} locked={lockedHrefs.includes(t.href)} />)}
+            </div>
+          </section>
+        )
+      })}
     </div>
   )
 }

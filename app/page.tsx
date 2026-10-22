@@ -1,93 +1,9 @@
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { verifyJWT } from '@/lib/session'
+import { lockedToolHrefs } from '@/lib/tools'
 import AppShell from '@/components/layout/AppShell'
-import ToolGrid from '@/components/ToolGrid'
-
-const TOOLS = [
-  {
-    href: '/pipeline',
-    title: 'Pipeline Review',
-    description: 'Monitor and improve sales pipeline health and hygiene across your team.',
-    color: 'var(--blue-500)',
-    bg: 'var(--blue-50)',
-  },
-  {
-    href: '/cs-pipeline',
-    title: 'CS Pipeline',
-    description: 'Renewal and expansion pipeline visibility for the Customer Success team.',
-    color: 'var(--green-600)',
-    bg: 'var(--green-50)',
-  },
-  {
-    href: '/campaign-setup',
-    title: 'Campaign Setup',
-    description: 'AI-assisted campaign creation that triggers HubSpot and Salesforce workflows via n8n.',
-    color: 'var(--orange-700)',
-    bg: 'var(--orange-50)',
-  },
-  {
-    href: '/dedupe',
-    title: 'CRM Dedupe',
-    description: 'Identify and merge duplicate company records across Salesforce and HubSpot.',
-    color: 'var(--purple-500)',
-    bg: 'var(--purple-50)',
-  },
-  {
-    href: '/event-leads',
-    title: 'Event Lead Pipeline',
-    description: 'Clean and enrich event attendee lists with AI before importing to CRM.',
-    color: 'var(--green-600)',
-    bg: 'var(--green-50)',
-  },
-  {
-    href: '/pricing-migration',
-    title: 'Pricing Migration',
-    description: 'Migrate open renewal opportunities onto the new Supervise and Boarding pricing model.',
-    color: 'var(--blue-500)',
-    bg: 'var(--blue-50)',
-  },
-  {
-    href: '/pricing',
-    title: 'Pricing',
-    description: 'Package overview with what\'s included in each plan, plus an interactive pricing calculator for quotes.',
-    color: 'var(--navy-900)',
-    bg: 'var(--blue-50)',
-  },
-  {
-    href: '/commissions',
-    title: 'Commissions',
-    description: 'Calculate rep commission on Closed Won deals against quarterly quota attainment.',
-    color: 'var(--orange-700)',
-    bg: 'var(--orange-50)',
-  },
-  {
-    href: '/sql-handoff',
-    title: 'SQL Handoff',
-    description: 'Track and disposition open Qualifying-stage opportunities, with a rep dashboard for SQL/SQO metrics and pipeline coverage.',
-    color: 'var(--purple-500)',
-    bg: 'var(--purple-50)',
-  },
-]
-
-const TOOL_ALLOW_ENV: Record<string, string> = {
-  '/pipeline':       'PIPELINE_ALLOW',
-  '/cs-pipeline':    'CS_PIPELINE_ALLOW',
-  '/dedupe':         'DEDUPE_ALLOW',
-  '/event-leads':    'EVENT_LEADS_ALLOW',
-  '/campaign-setup':    'CAMPAIGN_SETUP_ALLOW',
-  '/pricing-migration': 'PRICING_MIGRATION_ALLOW',
-}
-
-function isLocked(href: string, email: string): boolean {
-  const envKey = TOOL_ALLOW_ENV[href]
-  if (!envKey) return false
-  const allowed = (process.env[envKey] ?? '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean)
-  return allowed.length > 0 && !allowed.includes(email)
-}
+import ToolGrid, { Greeting } from '@/components/ToolGrid'
 
 export default async function HomePage() {
   const cookieStore = await cookies()
@@ -98,26 +14,23 @@ export default async function HomePage() {
   }
 
   const userName = (session.name as string) || (session.email as string) || 'User'
-  const email = (session.email as string | undefined)?.toLowerCase() ?? ''
-
-  const tools = TOOLS.map(tool => ({
-    ...tool,
-    locked: isLocked(tool.href, email),
-  }))
+  const email = (session.email as string | undefined) ?? ''
+  const firstName = ((session.name as string | undefined) ?? '').split(' ')[0]
+  const lockedHrefs = lockedToolHrefs(email)
 
   return (
-    <AppShell userName={userName}>
-      <div style={{ maxWidth: 900 }}>
-        <div style={{ marginBottom: 32 }}>
+    <AppShell userName={userName} lockedHrefs={lockedHrefs}>
+      <div style={{ maxWidth: 1600 }}>
+        <div style={{ marginBottom: 36 }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 26, fontWeight: 700, color: 'var(--fg-1)', marginBottom: 6 }}>
-            Orah Internal Ops Hub
+            <Greeting firstName={firstName} />
           </h1>
           <p style={{ fontSize: 14, color: 'var(--fg-3)' }}>
-            Internal tools for the Orah Revenue and Customer Success teams. Select a tool to get started.
+            Internal tools for the Orah Revenue and Customer Success teams.
           </p>
         </div>
 
-        <ToolGrid tools={tools} />
+        <ToolGrid lockedHrefs={lockedHrefs} />
       </div>
     </AppShell>
   )

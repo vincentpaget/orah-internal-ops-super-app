@@ -74,7 +74,7 @@ export default async function PipelinePage({ searchParams }: Props) {
       {/* Page header */}
       <div style={{ marginBottom: activeRep ? 12 : 20 }}>
         <h1 style={{ fontSize: 28, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>
-          Pipeline hygiene
+          Pipeline Hygiene (NB)
         </h1>
         <p style={{ fontSize: 14, color: 'var(--fg-2)', marginTop: 6 }}>
           Where each rep stands against hygiene rules. Click a rep to drill in.

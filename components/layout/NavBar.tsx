@@ -2,130 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-
-function HomeIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M3 9.5L10 3l7 6.5V17a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M7 18v-6h6v6" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function PipelineIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <circle cx="8" cy="8" r="3" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="15" cy="9" r="2.5" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 17c0-2.5 2.2-4.5 5-4.5s5 2 5 4.5" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M13.5 16c0-1.8 1.4-3.3 3-3.3s3 1.5 3 3.3" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function DedupeIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="2" y="3" width="7" height="5" rx="1.5" stroke={c} strokeWidth="1.6"/>
-      <rect x="11" y="3" width="7" height="5" rx="1.5" stroke={c} strokeWidth="1.6"/>
-      <path d="M5.5 8v2.5M14.5 8v2.5M5.5 10.5h9M10 10.5V14" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-      <rect x="6.5" y="14" width="7" height="4" rx="1.5" stroke={c} strokeWidth="1.6"/>
-    </svg>
-  )
-}
-
-function EventLeadsIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="3" y="3" width="14" height="14" rx="2" stroke={c} strokeWidth="1.6"/>
-      <path d="M7 3v3M13 3v3M3 9h14" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-      <path d="M7 13h2M7 16h4" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-      <circle cx="14" cy="14.5" r="3" fill={c} fillOpacity="0.12" stroke={c} strokeWidth="1.4"/>
-      <path d="M13 14.5l1 1 2-1.5" stroke={c} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function CampaignIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M3 7h14v9a1 1 0 01-1 1H4a1 1 0 01-1-1V7z" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 7l7-4 7 4" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M3 7l7 5 7-5" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function CsPipelineIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M4 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-      <path d="M10 8V4M10 4l-2 2M10 4l2 2" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="10" cy="15" r="1.5" fill={c}/>
-      <path d="M6.5 17h7" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function PricingMigrationIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M3 14h14M3 10h14M3 6h14" stroke={c} strokeWidth="1.6" strokeLinecap="round"/>
-      <circle cx="6" cy="6" r="1.5" fill={c}/>
-      <circle cx="10" cy="10" r="1.5" fill={c}/>
-      <circle cx="15" cy="14" r="1.5" fill={c}/>
-    </svg>
-  )
-}
-
-function CommissionsIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <circle cx="10" cy="10" r="7" stroke={c} strokeWidth="1.6"/>
-      <path d="M10 6v1.2M10 12.8V14M7.7 8.2c0-1 .9-1.7 2.3-1.7s2.3.7 2.3 1.7c0 2.3-4.6 1-4.6 3.3 0 1 .9 1.7 2.3 1.7s2.3-.7 2.3-1.7" stroke={c} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function SqlHandoffIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <rect x="2" y="4" width="4.5" height="12" rx="1.3" stroke={c} strokeWidth="1.6"/>
-      <rect x="7.75" y="4" width="4.5" height="8" rx="1.3" stroke={c} strokeWidth="1.6"/>
-      <rect x="13.5" y="4" width="4.5" height="5" rx="1.3" stroke={c} strokeWidth="1.6"/>
-    </svg>
-  )
-}
-
-function PricingIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <path d="M10.6 2.5H16a1.5 1.5 0 011.5 1.5v5.4a1.5 1.5 0 01-.44 1.06l-6.6 6.6a1.5 1.5 0 01-2.12 0L3.94 12.66a1.5 1.5 0 010-2.12l6.6-6.6a1.5 1.5 0 011.06-.44z" stroke={c} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-      <circle cx="13.5" cy="6.5" r="1.3" stroke={c} strokeWidth="1.6"/>
-    </svg>
-  )
-}
-
-function AdminIcon({ active }: { active: boolean }) {
-  const c = active ? 'var(--navy-900)' : 'var(--fg-3)'
-  return (
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-      <circle cx="10" cy="10" r="7" stroke={c} strokeWidth="1.6"/>
-      <circle cx="10" cy="10" r="2.5" stroke={c} strokeWidth="1.6"/>
-      <path d="M10 3v1.5M10 15.5V17M3 10h1.5M15.5 10H17M5.05 5.05l1.06 1.06M13.89 13.89l1.06 1.06M14.95 5.05l-1.06 1.06M6.11 13.89l-1.06 1.06" stroke={c} strokeWidth="1.4" strokeLinecap="round"/>
-    </svg>
-  )
-}
+import type { ComponentType } from 'react'
+import { TOOL_GROUPS, TOOLS, matchesTool } from '@/lib/tools'
+import { TOOL_ICONS, HomeIcon, AdminIcon } from './ToolIcons'
 
 function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   return (
@@ -141,30 +20,65 @@ function ChevronIcon({ collapsed }: { collapsed: boolean }) {
   )
 }
 
-const NAV_ITEMS = [
-  { href: '/', label: 'Home', Icon: HomeIcon, match: (p: string) => p === '/' },
-  { href: '/pipeline', label: 'Pipeline Review', Icon: PipelineIcon, match: (p: string) => p.startsWith('/pipeline') },
-  { href: '/cs-pipeline', label: 'CS Pipeline', Icon: CsPipelineIcon, match: (p: string) => p.startsWith('/cs-pipeline') },
-  { href: '/campaign-setup', label: 'Campaign Setup', Icon: CampaignIcon, match: (p: string) => p.startsWith('/campaign-setup') },
-  { href: '/dedupe', label: 'CRM Dedupe', Icon: DedupeIcon, match: (p: string) => p.startsWith('/dedupe') },
-  { href: '/event-leads', label: 'Event Lead Pipeline', Icon: EventLeadsIcon, match: (p: string) => p.startsWith('/event-leads') },
-  { href: '/pricing-migration', label: 'Pricing Migration', Icon: PricingMigrationIcon, match: (p: string) => p.startsWith('/pricing-migration') },
-  { href: '/pricing', label: 'Pricing', Icon: PricingIcon, match: (p: string) => p === '/pricing' || p.startsWith('/pricing/') },
-  { href: '/commissions', label: 'Commissions', Icon: CommissionsIcon, match: (p: string) => p.startsWith('/commissions') },
-  { href: '/sql-handoff', label: 'SQL Handoff', Icon: SqlHandoffIcon, match: (p: string) => p.startsWith('/sql-handoff') },
-]
-
-const ADMIN_ITEMS = [
-  { href: '/admin', label: 'Admin', Icon: AdminIcon, match: (p: string) => p.startsWith('/admin') },
-]
-
 interface Props {
   collapsed: boolean
   onToggle: () => void
+  /** Tools the user can't open; hidden from the sidebar. */
+  lockedHrefs: string[]
 }
 
-export default function NavBar({ collapsed, onToggle }: Props) {
+function NavLink({ href, label, Icon, active, collapsed }: {
+  href: string
+  label: string
+  Icon: ComponentType<{ color: string }>
+  active: boolean
+  collapsed: boolean
+}) {
+  return (
+    <Link
+      href={href}
+      title={label}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: collapsed ? 0 : 10,
+        padding: '7px 8px',
+        borderRadius: 6,
+        textDecoration: 'none',
+        fontSize: 14,
+        background: active ? 'var(--blue-50)' : 'transparent',
+        color: active ? 'var(--navy-900)' : 'var(--fg-2)',
+        fontWeight: active ? 600 : 500,
+        borderLeft: `3px solid ${active ? 'var(--navy-900)' : 'transparent'}`,
+        transition: 'background 120ms, color 120ms',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+      }}
+    >
+      <Icon color={active ? 'var(--navy-900)' : 'var(--fg-3)'} />
+      {!collapsed && <span>{label}</span>}
+    </Link>
+  )
+}
+
+// Collapsed: a thin rule stands in for the heading, keeping groups visually separate.
+function GroupHeading({ label, collapsed }: { label: string; collapsed: boolean }) {
+  if (collapsed) {
+    return <div style={{ borderTop: '1px solid var(--border)', margin: '10px 8px 6px' }} />
+  }
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase',
+      color: 'var(--fg-3)', padding: '16px 11px 6px', whiteSpace: 'nowrap', overflow: 'hidden',
+    }}>
+      {label}
+    </div>
+  )
+}
+
+export default function NavBar({ collapsed, onToggle, lockedHrefs }: Props) {
   const pathname = usePathname()
+  const visible = TOOLS.filter(t => !lockedHrefs.includes(t.href))
 
   return (
     <nav data-print-hide style={{
@@ -183,67 +97,31 @@ export default function NavBar({ collapsed, onToggle }: Props) {
       transition: 'width 200ms ease',
     }}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flex: 1 }}>
-        {NAV_ITEMS.map(({ href, label, Icon, match }) => {
-          const active = match(pathname)
+        <NavLink href="/" label="Home" Icon={HomeIcon} active={pathname === '/'} collapsed={collapsed} />
+
+        {TOOL_GROUPS.map(group => {
+          const tools = visible.filter(t => t.group === group.key)
+          if (tools.length === 0) return null
           return (
-            <Link
-              key={href}
-              href={href}
-              title={label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: collapsed ? 0 : 10,
-                padding: '8px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                fontSize: 14,
-                background: active ? 'var(--blue-50)' : 'transparent',
-                color: active ? 'var(--navy-900)' : 'var(--fg-2)',
-                fontWeight: active ? 600 : 500,
-                borderLeft: `3px solid ${active ? 'var(--navy-900)' : 'transparent'}`,
-                transition: 'background 120ms, color 120ms',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-              }}
-            >
-              <Icon active={active} />
-              {!collapsed && <span>{label}</span>}
-            </Link>
+            <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <GroupHeading label={group.label} collapsed={collapsed} />
+              {tools.map(t => (
+                <NavLink
+                  key={t.href}
+                  href={t.href}
+                  label={t.navLabel}
+                  Icon={TOOL_ICONS[t.icon]}
+                  active={matchesTool(t.href, pathname)}
+                  collapsed={collapsed}
+                />
+              ))}
+            </div>
           )
         })}
+      </div>
 
-        <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-
-        {ADMIN_ITEMS.map(({ href, label, Icon, match }) => {
-          const active = match(pathname)
-          return (
-            <Link
-              key={href}
-              href={href}
-              title={label}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: collapsed ? 0 : 10,
-                padding: '8px',
-                borderRadius: 6,
-                textDecoration: 'none',
-                fontSize: 14,
-                background: active ? 'var(--blue-50)' : 'transparent',
-                color: active ? 'var(--navy-900)' : 'var(--fg-2)',
-                fontWeight: active ? 600 : 500,
-                borderLeft: `3px solid ${active ? 'var(--navy-900)' : 'transparent'}`,
-                transition: 'background 120ms, color 120ms',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-              }}
-            >
-              <Icon active={active} />
-              {!collapsed && <span>{label}</span>}
-            </Link>
-          )
-        })}
+      <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0', paddingTop: 8 }}>
+        <NavLink href="/admin" label="Admin" Icon={AdminIcon} active={matchesTool('/admin', pathname)} collapsed={collapsed} />
       </div>
 
       <button
