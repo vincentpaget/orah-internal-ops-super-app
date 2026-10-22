@@ -40,6 +40,10 @@ const P = {
   onbLite:       { USD: 1000, GBP: 750,  AUD: 1400, NZD: 1650, EUR: 840,  CAD: 1360 },
   onbStandard:   { USD: 3000, GBP: 2250, AUD: 4200, NZD: 4950, EUR: 2520, CAD: 4080 },
   onbPremium:    { USD: 6000, GBP: 4500, AUD: 8400, NZD: 9900, EUR: 5040, CAD: 8160 },
+  sms6k:         { USD: 300,  GBP: 225,  AUD: 420,  NZD: 495,  EUR: 252,  CAD: 408 },
+  sms15k:        { USD: 700,  GBP: 525,  AUD: 980,  NZD: 1155, EUR: 588,  CAD: 952 },
+  sms30k:        { USD: 1400, GBP: 1050, AUD: 1960, NZD: 2310, EUR: 1176, CAD: 1904 },
+  nfcTiles10:    { USD: 100,  GBP: 75,   AUD: 140,  NZD: 165,  EUR: 84,   CAD: 136 },
 } satisfies Record<string, Prices>
 
 // ── Add-ons ─────────────────────────────────────────────────────────────────
@@ -66,6 +70,23 @@ export interface TierAddon extends Addon {
   /** Caveat for this tier, shown with an asterisk next to the add-on name. */
   note?: string
 }
+
+// ── Additional one-time fees ────────────────────────────────────────────────
+
+export interface OneTimeFee {
+  id: string
+  name: string
+  /** Price per pack, charged once. */
+  prices: Prices
+}
+
+/** Optional one-time purchases, available on every plan. */
+export const ONE_TIME_FEES: OneTimeFee[] = [
+  { id: 'sms-6k', name: 'SMS Credits (6k)', prices: P.sms6k },
+  { id: 'sms-15k', name: 'SMS Credits (15k)', prices: P.sms15k },
+  { id: 'sms-30k', name: 'SMS Credits (30k)', prices: P.sms30k },
+  { id: 'nfc-tiles-10', name: 'NFC Checkpoint Tiles (10 Pack)', prices: P.nfcTiles10 },
+]
 
 // ── Tiers ───────────────────────────────────────────────────────────────────
 

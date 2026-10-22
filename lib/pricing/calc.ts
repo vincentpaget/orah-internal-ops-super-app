@@ -1,4 +1,4 @@
-import { CURRENCIES, PLATFORM_LABELS, TIERS, type Addon, type CurrencyCode, type Platform, type Prices, type Tier } from './data'
+import { CURRENCIES, ONE_TIME_FEES, PLATFORM_LABELS, TIERS, type Addon, type CurrencyCode, type Platform, type Prices, type Tier } from './data'
 
 export const MIN_STUDENTS = 250
 
@@ -34,6 +34,15 @@ export interface QuoteInput {
   tierId: string
   /** addon id → quantity (students for per-student add-ons, 1 for flat) */
   addons: Record<string, number>
+  /** one-time fee id → number of packs */
+  oneTimeFees?: Record<string, number>
+}
+
+export interface QuoteOneTimeLine {
+  name: string
+  quantity: number
+  unitPrice: number
+  cost: number
 }
 
 export interface QuoteAddonLine {
@@ -54,6 +63,9 @@ export interface Quote {
   annual: number
   perStudent: number
   onboardingFee: number
+  oneTimeLines: QuoteOneTimeLine[]
+  oneTimeTotal: number
+  /** annual + onboarding + one-time fees */
   year1: number
 }
 
@@ -81,6 +93,16 @@ export function calculateQuote(input: QuoteInput): Quote | null {
 
   const annual = baseCost + addonLines.reduce((s, l) => s + l.cost, 0)
   const onboardingFee = getPrice(tier.onboarding.prices, input.currency)
+
+  const oneTimeLines: QuoteOneTimeLine[] = []
+  for (const fee of ONE_TIME_FEES) {
+    const quantity = input.oneTimeFees?.[fee.id] ?? 0
+    if (quantity <= 0) continue
+    const unitPrice = getPrice(fee.prices, input.currency)
+    oneTimeLines.push({ name: fee.name, quantity, unitPrice, cost: unitPrice * quantity })
+  }
+  const oneTimeTotal = oneTimeLines.reduce((s, l) => s + l.cost, 0)
+
   return {
     tier,
     studentCount,
@@ -90,7 +112,9 @@ export function calculateQuote(input: QuoteInput): Quote | null {
     annual,
     perStudent: annual / studentCount,
     onboardingFee,
-    year1: annual + onboardingFee,
+    oneTimeLines,
+    oneTimeTotal,
+    year1: annual + onboardingFee + oneTimeTotal,
   }
 }
 
@@ -114,9 +138,14 @@ export function quoteToText(q: Quote, input: QuoteInput): string {
     text += `\n`
   }
   text += `Onboarding Fee (One-time): ${q.tier.onboarding.name} = ${m(q.onboardingFee)}\n\n`
+  if (q.oneTimeLines.length > 0) {
+    text += `Additional One-time Fees:\n`
+    for (const l of q.oneTimeLines) text += `  - ${l.name}: ${l.quantity} × ${m(l.unitPrice)} = ${m(l.cost)}\n`
+    text += `\n`
+  }
   text += `Total Annual Cost: ${m(q.annual)}\n`
   text += `Per Student: ${sym}${q.perStudent.toFixed(2)}/year\n\n`
   text += `Total Year 1 Cost: ${m(q.year1)}\n`
-  text += `(Includes one-time onboarding fee)`
+  text += q.oneTimeLines.length > 0 ? `(Includes one-time onboarding and additional fees)` : `(Includes one-time onboarding fee)`
   return text
 }

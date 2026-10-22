@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { TABLE_ADDONS, TABLE_FEATURES, TIERS, type CurrencyCode, type Platform, type Tier } from '@/lib/pricing/data'
+import { ONE_TIME_FEES, TABLE_ADDONS, TABLE_FEATURES, TIERS, type CurrencyCode, type Platform, type Tier } from '@/lib/pricing/data'
 import { formatAddonPrice, formatMoney, getPrice } from '@/lib/pricing/calc'
 import { CurrencySelect, PageHeader, PlatformToggle } from './Controls'
 import styles from './pricing.module.css'
@@ -180,6 +180,25 @@ function CompareTable({ platform, currency }: { platform: Platform; currency: Cu
   )
 }
 
+function OneTimeFees({ currency }: { currency: CurrencyCode }) {
+  return (
+    <section style={{ ...CARD, overflow: 'clip', marginTop: 32 }}>
+      <div style={{ padding: '18px 24px', borderTop: '3px solid var(--navy-900)', background: 'var(--bg-subtle)', borderBottom: '1px solid var(--border)' }}>
+        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, color: 'var(--navy-900)', margin: 0 }}>Additional One-Time Fees</h2>
+        <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '2px 0 0' }}>Optional purchases, available on every plan.</p>
+      </div>
+      {ONE_TIME_FEES.map(f => (
+        <div key={f.id} className={styles.tableRow} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '12px 24px', borderBottom: '1px solid var(--border-subtle)', fontSize: 14 }}>
+          <span style={{ color: 'var(--fg-1)' }}>{f.name}</span>
+          <span style={{ fontWeight: 600, color: 'var(--navy-900)', whiteSpace: 'nowrap' }}>
+            {formatMoney(getPrice(f.prices, currency), currency)} <span style={{ fontWeight: 400, color: 'var(--fg-3)', fontSize: 12 }}>one-time</span>
+          </span>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 export default function PricingOverview() {
   const [currency, setCurrency] = useState<CurrencyCode>('USD')
   const [platform, setPlatform] = useState<Platform>('supervise')
@@ -197,6 +216,8 @@ export default function PricingOverview() {
       <div className={`${styles.planGrid} ${styles.narrowOnly}`} style={{ paddingTop: 12 }}>
         {TIERS[platform].map(t => <PlanCard key={t.id} tier={t} currency={currency} />)}
       </div>
+
+      <OneTimeFees currency={currency} />
     </div>
   )
 }

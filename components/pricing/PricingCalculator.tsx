@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { TIERS, type CurrencyCode, type Platform, type TierAddon } from '@/lib/pricing/data'
+import { ONE_TIME_FEES, TIERS, type CurrencyCode, type OneTimeFee, type Platform, type TierAddon } from '@/lib/pricing/data'
 import { MIN_STUDENTS, calculateQuote, currencyName, currencySymbol, findTier, formatAddonPrice, formatMoney, getPrice, quoteToText, type Quote } from '@/lib/pricing/calc'
 import { CurrencySelect, PageHeader, PlatformToggle } from './Controls'
 import OfferBuilder from './offer/OfferBuilder'
@@ -94,6 +94,35 @@ function AddonRow({
   )
 }
 
+function OneTimeFeeRow({ fee, currency, qty, onChange }: { fee: OneTimeFee; currency: CurrencyCode; qty: number | undefined; onChange: (qty: number | undefined) => void }) {
+  const checked = qty != null
+  return (
+    <div style={{ border: '1px solid var(--border-strong)', borderRadius: 8, padding: 14, marginBottom: 10, background: 'var(--bg)' }}>
+      <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, cursor: 'pointer' }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--navy-900)' }}>{fee.name}</div>
+          <div style={{ fontSize: 13, color: 'var(--fg-3)' }}>{formatMoney(getPrice(fee.prices, currency), currency)} one-time</div>
+        </div>
+        <input type="checkbox" checked={checked} onChange={e => onChange(e.target.checked ? 1 : undefined)} style={{ width: 20, height: 20, cursor: 'pointer' }} />
+      </label>
+      {checked && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingTop: 12, marginTop: 12, borderTop: '1px solid var(--border)' }}>
+          <label style={{ fontSize: 13, color: 'var(--fg-2)' }} htmlFor={`otf-${fee.id}`}>Quantity:</label>
+          <input
+            id={`otf-${fee.id}`}
+            type="number"
+            className={styles.qtyInput}
+            min={1}
+            value={qty}
+            onChange={e => onChange(Math.max(1, parseInt(e.target.value) || 1))}
+            style={{ flex: 1, minWidth: 100, padding: '7px 10px', border: '1px solid var(--border-strong)', borderRadius: 6, fontSize: 14, fontWeight: 600 }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function SummaryRow({ label, sub, value, bold }: { label: string; sub?: string; value: string; bold?: boolean }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 10 }}>
@@ -141,6 +170,15 @@ function Summary({ quote, currency, copied, onCopy }: { quote: Quote | null; cur
 
       <SummaryRow bold label={quote.tier.onboarding.name} sub="One-time setup fee" value={m(quote.onboardingFee)} />
 
+      {quote.oneTimeLines.length > 0 && (
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, marginTop: 4 }}>
+          <div style={{ fontWeight: 600, marginBottom: 10, color: 'var(--navy-900)', fontSize: 14 }}>Additional one-time fees:</div>
+          {quote.oneTimeLines.map(l => (
+            <SummaryRow key={l.name} label={l.name} sub={`${l.quantity} × ${m(l.unitPrice)}`} value={m(l.cost)} />
+          ))}
+        </div>
+      )}
+
       <div style={{ background: 'var(--bg-subtle)', padding: 18, borderRadius: 8, marginTop: 18 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--navy-900)', textAlign: 'center', marginBottom: 14, textTransform: 'uppercase', letterSpacing: 0.5 }}>
           Grand Total
@@ -158,7 +196,7 @@ function Summary({ quote, currency, copied, onCopy }: { quote: Quote | null; cur
           <span style={{ fontWeight: 600, color: 'var(--navy-900)' }}>Total Year 1</span>
           <span style={bigNumber}>{m(quote.year1)}</span>
         </div>
-        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>Includes {m(quote.onboardingFee)} onboarding</div>
+        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--fg-3)', marginTop: 2 }}>Includes {m(quote.onboardingFee)} onboarding{quote.oneTimeTotal > 0 && ` + ${m(quote.oneTimeTotal)} one-time fees`}</div>
       </div>
 
       <div style={{ textAlign: 'center', fontSize: 12, color: 'var(--fg-3)', marginTop: 14 }}>
@@ -193,6 +231,8 @@ export default function PricingCalculator() {
   const [studentInput, setStudentInput] = useState('500')
   const [tierId, setTierId] = useState<string | null>(null)
   const [selections, setSelections] = useState<Record<string, AddonSelection>>({})
+  /** one-time fee id → packs; plan-independent, so kept across tier/platform changes */
+  const [oneTimeFees, setOneTimeFees] = useState<Record<string, number>>({})
   const [copied, setCopied] = useState(false)
   const [offerMode, setOfferMode] = useState(false)
 
@@ -213,8 +253,8 @@ export default function PricingCalculator() {
       if (addon.perStudent && capAtStudents) qty = Math.min(qty, studentCount)
       addons[id] = Math.max(1, qty)
     }
-    return { platform, currency, studentCount, tierId, addons }
-  }, [platform, currency, studentCount, tierId, selections, tier, capAtStudents])
+    return { platform, currency, studentCount, tierId, addons, oneTimeFees }
+  }, [platform, currency, studentCount, tierId, selections, tier, capAtStudents, oneTimeFees])
 
   const quote = quoteInput ? calculateQuote(quoteInput) : null
 
@@ -391,6 +431,23 @@ export default function PricingCalculator() {
                 <div style={{ fontSize: 12, color: 'var(--fg-3)', fontStyle: 'italic' }}>One-time setup fee • Included with {tier.name} tier</div>
               </div>
             )}
+          </Section>
+
+          <Section n={6} title="Additional One-Time Fees (Optional)">
+            {ONE_TIME_FEES.map(f => (
+              <OneTimeFeeRow
+                key={f.id}
+                fee={f}
+                currency={currency}
+                qty={oneTimeFees[f.id]}
+                onChange={qty => setOneTimeFees(prev => {
+                  const next = { ...prev }
+                  if (qty == null) delete next[f.id]
+                  else next[f.id] = qty
+                  return next
+                })}
+              />
+            ))}
           </Section>
         </div>
 
