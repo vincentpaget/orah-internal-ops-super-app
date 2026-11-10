@@ -206,9 +206,20 @@ export function compPlanForDeal(deal: SFCommissionOpportunity, settings: CompPla
   return plan && plan !== 'empty' ? plan : null
 }
 
-/** Only reps on a comp plan earn commission — deals with no plan for their close quarter are left out entirely. */
-export function onlyDealsWithCompPlan<T extends SFCommissionOpportunity>(deals: T[], settings: CompPlanSettings): T[] {
-  return deals.filter(deal => compPlanForDeal(deal, settings) != null)
+/** A 0% flat expansion rate means the plan pays nothing on expansions — those deals are left out of every view. */
+export function isExcludedExpansion(deal: SFCommissionOpportunity, plan: CompPlan): boolean {
+  return plan.expansionRate === 0 && !isNewBusiness(deal)
+}
+
+/**
+ * Only deals that can earn commission: the rep has a comp plan for the close quarter, and the deal isn't an
+ * expansion on a plan whose expansion rate is 0%. Everything else is left out entirely.
+ */
+export function onlyCommissionableDeals<T extends SFCommissionOpportunity>(deals: T[], settings: CompPlanSettings): T[] {
+  return deals.filter(deal => {
+    const plan = compPlanForDeal(deal, settings)
+    return plan != null && !isExcludedExpansion(deal, plan)
+  })
 }
 
 /**
@@ -254,7 +265,8 @@ export function buildQuarterGroups(
     const hasPlan = setting != null
     const expansionRate = hasPlan ? (setting.expansionRate ?? null) : null
     const onboardingRate = hasPlan ? (setting.onboardingRate ?? null) : null
-    const sorted = [...quarterDeals].sort(compareDealsForCommission)
+    // 0% expansion rate: expansions earn nothing, so they don't appear at all.
+    const sorted = quarterDeals.filter(d => !(hasPlan && isExcludedExpansion(d, setting))).sort(compareDealsForCommission)
     const commissionDeals = withOnboarding(calculateQuarterDeals(sorted, setting), onboardingRate)
     const onboardingCommission = commissionDeals.reduce((s, d) => s + d.onboardingCommission, 0)
     const newBusinessDeals = commissionDeals.filter(isNewBusiness)

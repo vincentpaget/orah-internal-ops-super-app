@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { CommissionBand, CompPlan, CompPlanSettings, DealEdit, DealEditFieldValue, SFCommissionOpportunity, StoredCompPlan, SyncStatus } from '@/lib/commissions/types'
-import { applyOnboardingRates, DEFAULT_BANDS, onlyDealsWithCompPlan, DEFAULT_EXPANSION_RATE, DEFAULT_ONBOARDING_RATE, DEFAULT_QUOTA } from '@/lib/commissions/calc'
+import { applyOnboardingRates, DEFAULT_BANDS, onlyCommissionableDeals, DEFAULT_EXPANSION_RATE, DEFAULT_ONBOARDING_RATE, DEFAULT_QUOTA } from '@/lib/commissions/calc'
 import CommissionsFilters from './CommissionsFilters'
 import CommissionsView from './CommissionsView'
 import SettingsView from './SettingsView'
@@ -214,10 +214,11 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
     persistCell(cellId, next)
   }
 
-  // Pending / Payable only include reps on a comp plan for the deal's close quarter (e.g. no plan → no commission).
+  // Pending / Payable only include commissionable deals: the rep has a comp plan for the close quarter, and the deal
+  // isn't an expansion on a plan with a 0% expansion rate.
   // Onboarding commission is calculated in the app from each rep's plan, never stored in SF.
-  const payableWithOnboarding = applyOnboardingRates(onlyDealsWithCompPlan(payableDeals, settings), settings)
-  const pendingWithOnboarding = applyOnboardingRates(onlyDealsWithCompPlan(pendingDeals, settings), settings)
+  const payableWithOnboarding = applyOnboardingRates(onlyCommissionableDeals(payableDeals, settings), settings)
+  const pendingWithOnboarding = applyOnboardingRates(onlyCommissionableDeals(pendingDeals, settings), settings)
   const paidWithOnboarding = applyOnboardingRates(paidDeals, settings)
 
   const selectedOwnerName = owners.find(o => o.ownerId === selectedOwner)?.ownerName ?? null

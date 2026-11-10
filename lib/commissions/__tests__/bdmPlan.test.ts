@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyOnboardingRates, buildQuarterGroups, NEW_BUSINESS_RECORD_TYPE_ID, onlyDealsWithCompPlan } from '../calc'
+import { applyOnboardingRates, buildQuarterGroups, NEW_BUSINESS_RECORD_TYPE_ID, onlyCommissionableDeals } from '../calc'
 import { buildPendingGroups } from '../pending'
 import { arrInvoicedPaid, earnedShare, isCommissionLocked, isPartiallyPaid, onboardingEarnedShare, onboardingFeePaid, onboardingInvoicedPaid, onboardingPayableNow, onboardingPendingNow, payableNow, pendingNow, recordPaymentEdits, remainingCommission, remainingOnboardingCommission } from '../payments'
 import { buildPayableGroups, buildPayRunHistory } from '../payable'
@@ -315,6 +315,33 @@ describe('separate ARR and onboarding tables in Payable / Pending', () => {
   it('leaves out reps with no comp plan for the close quarter', () => {
     const settings = { 'James Showers::2026-Q4': plan(251000) }
     const deals = [deal({ 'Owner.Name': 'James Showers', CloseDate: '2026-11-01' }), deal({ 'Owner.Name': 'Emily DeRoche', CloseDate: '2026-11-01' })]
-    expect(onlyDealsWithCompPlan(deals, settings).map(d => d['Owner.Name'])).toEqual(['James Showers'])
+    expect(onlyCommissionableDeals(deals, settings).map(d => d['Owner.Name'])).toEqual(['James Showers'])
+  })
+})
+
+describe('0% expansion rate', () => {
+  const expansion = (o: Partial<SFCommissionOpportunity> = {}) =>
+    deal({ RecordTypeId: '0120000000EXPAN', 'RecordType.Name': 'Expansion', Net_ARR_Override__c: 10000, ...o })
+
+  it('leaves expansion deals out of the Rep Summary quarter', () => {
+    const [group] = buildQuarterGroups(
+      [deal({ Net_ARR_Override__c: 50000 }), expansion()],
+      { '2026-Q4': plan(100000, { expansionRate: 0 }) }
+    )
+    expect(group.deals).toHaveLength(1)
+    expect(group.expansionAmount).toBe(0)
+    expect(group.totalAmount).toBe(50000)
+  })
+
+  it('still shows expansions when the flat rate is above 0%', () => {
+    const [group] = buildQuarterGroups([expansion()], { '2026-Q4': plan(100000, { expansionRate: 0.08 }) })
+    expect(group.deals).toHaveLength(1)
+    expect(group.expansionCommission).toBeCloseTo(800, 2)
+  })
+
+  it('leaves them out of Pending / Payable too, but keeps new business', () => {
+    const settings = { 'Rep::2026-Q4': plan(100000, { expansionRate: 0 }) }
+    const kept = onlyCommissionableDeals([deal(), expansion()], settings)
+    expect(kept.map(d => d['RecordType.Name'])).toEqual(['New Business'])
   })
 })

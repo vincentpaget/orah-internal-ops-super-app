@@ -156,7 +156,9 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
             />
           ))}
           <GroupLabel>Expansion</GroupLabel>
-          <BandPill range={expansionRatePct != null ? 'Flat' : 'In bands'} rate={expansionRatePct ?? ''} />
+          {group.expansionRate === 0
+            ? <BandPill range="Excluded" rate="" />
+            : <BandPill range={expansionRatePct != null ? 'Flat' : 'In bands'} rate={expansionRatePct ?? ''} />}
           {onboardingRatePct != null && (
             <>
               <GroupLabel>Onboarding</GroupLabel>
