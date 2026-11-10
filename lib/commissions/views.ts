@@ -1,11 +1,12 @@
 import type { CommissionDeal } from './types'
+import { payableNow, pendingNow } from './payments'
 
 export const ALL_COLUMN_KEYS = [
   'closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD',
   'amountCumulative', 'attainment',
   'calculatedCommission', 'calculatedCommissionRate',
-  'sfCommissionAmount', 'sfCommissionRate', 'payoutThreshold', 'totalInvoicePaid',
-  'sfQualified', 'sfPaid', 'pendingAmount', 'payableAmount', 'sfPaidAmount', 'sfPaidDate', 'sfNotes',
+  'sfCommissionAmount', 'sfCommissionRate', 'payoutThreshold', 'totalInvoicePaid', 'arrPaid', 'invoicePaidPct',
+  'sfQualified', 'pendingAmount', 'payableAmount', 'sfPaidAmount', 'sfPaidDate', 'sfPaid', 'sfNotes',
 ]
 
 export interface ColumnGroup {
@@ -36,18 +37,18 @@ export const DEAL_VIEWS: DealView[] = [
     key: 'paid',
     label: 'Commission Paid',
     filter: d => d.Commission_Paid__c === true,
-    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfPaid', 'sfPaidAmount', 'sfPaidDate', 'sfNotes'],
+    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfPaidAmount', 'sfPaidDate', 'sfPaid', 'sfNotes'],
   },
   {
     key: 'pending',
     label: 'Commission Payable',
-    filter: d => d.Commission_Paid__c === false && d.Commission_Payout_Threshold_Met__c === true,
-    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfCommissionAmount', 'sfPaid', 'sfPaidAmount', 'sfPaidDate', 'sfNotes'],
+    filter: d => payableNow(d) !== 0,
+    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfCommissionAmount', 'payableAmount', 'sfPaidAmount', 'sfPaidDate', 'sfPaid', 'sfNotes'],
   },
   {
     key: 'on_hold',
     label: 'Commission Pending',
-    filter: d => d.Commission_Paid__c === false && d.Commission_Payout_Threshold_Met__c === false,
-    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfCommissionAmount', 'sfQualified', 'payoutThreshold', 'totalInvoicePaid', 'nextInvoiceDate', 'sfNotes'],
+    filter: d => pendingNow(d) !== 0,
+    columns: ['closeDate', 'stage', 'recordType', 'contractStart', 'amountLocal', 'amountNZD', 'sfCommissionAmount', 'payoutThreshold', 'totalInvoicePaid', 'arrPaid', 'invoicePaidPct', 'sfQualified', 'nextInvoiceDate', 'sfPaidAmount', 'pendingAmount', 'sfNotes'],
   },
 ]

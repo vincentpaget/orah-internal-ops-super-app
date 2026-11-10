@@ -8,6 +8,9 @@ import { downloadPayableSummaryPdf } from '@/lib/commissions/pdf'
 import { nzd, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
 import PayRunHistoryView from './PayRunHistoryView'
+import OnboardingFeesTable from './OnboardingFeesTable'
+import { PartPaidTag, RecordPaymentButton } from './CommissionsTable'
+import { payableNow, recordArrPaymentEdits, remainingCommission } from '@/lib/commissions/payments'
 
 interface Props {
   deals: SFCommissionOpportunity[]
@@ -19,6 +22,7 @@ interface Props {
   syncStatus: Record<string, SyncStatus>
   onSync: SyncDealFn
   canEdit: boolean
+  onboardingFieldsAvailable: boolean
 }
 
 const TH: React.CSSProperties = {
@@ -189,6 +193,15 @@ function DownloadPdfButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+function SubHeading({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+      <h4 style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{title}</h4>
+      <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>{detail}</span>
+    </div>
+  )
+}
+
 /** A cell is "dirty" once its field has been edited and that edit hasn't matched a successful sync yet. */
 function dirtyStyle(
   dealId: string,
@@ -205,7 +218,7 @@ function dirtyStyle(
   }
 }
 
-function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Omit<Props, 'paidDeals'>) {
+function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit, onboardingFieldsAvailable: showOnboarding }: Omit<Props, 'paidDeals'>) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -219,12 +232,21 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
     })
   }, [syncStatus])
 
-  if (deals.length === 0) {
+  const repGroups = buildPayableGroups(deals)
+  if (repGroups.length === 0) {
     return (
       <p style={{ fontSize: 13, color: 'var(--fg-3)', fontStyle: 'italic' }}>
-        No payable deals right now — nothing has met its payout threshold while still being unpaid.
+        Nothing payable right now — no ARR or onboarding commission has been earned and left unpaid.
       </p>
     )
+  }
+
+  /** Stages the ARR payout edits and opens the row for review — nothing is saved until Sync. */
+  function recordPayment(deal: SFCommissionOpportunity) {
+    for (const [field, value] of Object.entries(recordArrPaymentEdits(deal, edits))) {
+      onEditField(deal.Id, field as keyof DealEdit, value as DealEditFieldValue)
+    }
+    setEditingIds(prev => new Set(prev).add(deal.Id))
   }
 
   function toggleEditing(id: string) {
@@ -236,12 +258,12 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
     })
   }
 
-  const repGroups = buildPayableGroups(deals)
+  const tableProps = { edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }
 
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '0 0 20px' }}>
-        Deals that have met their payout threshold but aren&apos;t marked paid yet, grouped by rep and by SF Commission Paid Date month — use this to review what&apos;s going into the next pay run.
+        Commission payable in the next pay run, grouped by rep and pay-run month, with ARR and onboarding commission in separate tables — each grouped by its own Commission Paid Date. ARR on deals invoiced in stages shows only the share earned so far (subscription lines on Paid Maxio invoices ÷ committed ARR) minus what&apos;s already been paid; the rest stays in Pending until the next invoice is paid.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -250,13 +272,13 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{rep.ownerName}</h2>
               <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
-                {rep.dealCount} deal{rep.dealCount === 1 ? '' : 's'} · {nzd(rep.totalCommissionAmountNZD)} payable
+                {rep.dealCount} deal{rep.dealCount === 1 ? '' : 's'} · {nzd(rep.totalCommissionAmountNZD)} payable now
               </span>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
               {rep.months.map(month => {
-                const totalPaidAmount = month.deals.reduce((s, d) => {
+                const totalPaidAmount = month.arrDeals.reduce((s, d) => {
                   const edit = edits[d.Id]
                   const effective = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : d.Commission_Paid_Amount_NZD__c
                   return s + (effective ?? 0)
@@ -267,11 +289,14 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                     <h3 style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-2)', margin: 0 }}>{month.monthLabel}</h3>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
-                        {month.dealCount} deal{month.dealCount === 1 ? '' : 's'} · {nzd(month.totalCommissionAmountNZD)}
+                        {nzd(month.totalCommissionAmountNZD)} payable now
                       </span>
-                      <DownloadPdfButton onClick={() => downloadPayableSummaryPdf(rep.ownerName, month.monthLabel, month.deals, edits)} />
+                      <DownloadPdfButton onClick={() => downloadPayableSummaryPdf(rep.ownerName, month.monthLabel, month.arrDeals, month.onboardingDeals, edits)} />
                     </div>
                   </div>
+                  {month.arrDeals.length > 0 && (
+                  <>
+                  <SubHeading title="ARR Commission" detail={`${month.arrDeals.length} deal${month.arrDeals.length === 1 ? '' : 's'} · ${nzd(month.arrPayableNZD)} payable now`} />
                   <div style={{ overflowX: 'auto' }}>
                     <table style={{ width: 'auto', borderCollapse: 'separate', borderSpacing: 0 }}>
                       <thead>
@@ -281,13 +306,15 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                           <th style={TH}>Close Date</th>
                           <th style={{ ...TH, textAlign: 'right' }}>Amount (NZD)</th>
                           <th style={{ ...TH, textAlign: 'right' }}>Commission Amount</th>
-                          <th style={TH}>SF Commission Paid</th>
-                          <th style={{ ...TH, textAlign: 'right' }}>SF Commission Paid Amount</th>
+                          <th style={TH}>Commission Fully Paid</th>
+                          <th style={{ ...TH, textAlign: 'right' }}>SF Commission Paid to Date</th>
+                          <th style={{ ...TH, textAlign: 'right' }}>Payable Now</th>
                           <th style={TH}>SF Commission Paid Date</th>
                           <th style={{ ...TH, minWidth: NOTES_MIN_WIDTH }}>SF Commission Notes</th>
                           {canEdit && (
                             <>
                               <th style={{ ...TH, textAlign: 'center' }}>Edit</th>
+                              <th style={{ ...TH, textAlign: 'center' }}>Pay</th>
                               <th style={{ ...TH, textAlign: 'center' }}>Undo</th>
                               <th style={{ ...TH, textAlign: 'center' }}>Sync</th>
                             </>
@@ -295,7 +322,7 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                         </tr>
                       </thead>
                       <tbody>
-                        {month.deals.map((deal, i) => {
+                        {month.arrDeals.map((deal, i) => {
                           const edit = edits[deal.Id]
                           const isEditing = editingIds.has(deal.Id)
                           const effectivePaid = (edit?.commissionPaid !== undefined ? edit.commissionPaid : deal.Commission_Paid__c) ?? false
@@ -334,6 +361,14 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                                   <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{nzd(effectivePaidAmount)}</span>
                                 )}
                               </td>
+                              <td style={{ ...TD, textAlign: 'right' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                                  {(effectivePaidAmount ?? 0) !== 0 && remainingCommission(deal, edits) !== 0 && <PartPaidTag />}
+                                  <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 700, color: 'var(--fg-1)' }}>
+                                    {nzd(payableNow(deal, edits))}
+                                  </span>
+                                </span>
+                              </td>
                               <td style={{ ...TD, ...dirtyStyle(deal.Id, 'commissionPaidDate', edits, syncedEdits) }}>
                                 {isEditing ? (
                                   <input
@@ -364,19 +399,21 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                                     <EditToggleButton editing={isEditing} onClick={() => toggleEditing(deal.Id)} />
                                   </td>
                                   <td style={{ ...TD, textAlign: 'center' }}>
+                                    <RecordPaymentButton amount={payableNow(deal, edits)} onClick={() => recordPayment(deal)} />
+                                  </td>
+                                  <td style={{ ...TD, textAlign: 'center' }}>
                                     <UndoButton disabled={!edit} onClick={() => onUndoEdits(deal.Id)} />
                                   </td>
                                   <td style={{ ...TD, textAlign: 'center' }}>
                                     <SyncCell
                                       status={syncStatus[deal.Id]}
-                                      onClick={() => onSync(
-                                        deal.Id,
-                                        deal.Commission_Amount_NZD__c ?? null,
-                                        effectiveNotes ?? null,
-                                        effectivePaid ?? null,
-                                        effectivePaidAmount ?? null,
-                                        effectivePaidDate ?? null
-                                      )}
+                                      onClick={() => onSync(deal.Id, {
+                  commissionAmount: deal.Commission_Amount_NZD__c ?? null,
+                  commissionNotes: effectiveNotes ?? null,
+                  commissionPaid: effectivePaid ?? null,
+                  commissionPaidAmount: effectivePaidAmount ?? null,
+                  commissionPaidDate: effectivePaidDate ?? null,
+                })}
                                     />
                                   </td>
                                 </>
@@ -392,17 +429,30 @@ function UpcomingPayables({ deals, edits, syncedEdits, onEditField, onUndoEdits,
                           <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none', textAlign: 'right', fontWeight: 700, color: 'var(--green-700)', fontVariantNumeric: 'tabular-nums' }}>
-                            {nzd(month.totalCommissionAmountNZD)}
+                            {nzd(month.arrDeals.reduce((s, d) => s + (d.Commission_Amount_NZD__c ?? 0), 0))}
                           </td>
                           <td style={{ ...TD, borderBottom: 'none' }} />
                           <td style={{ ...TD, borderBottom: 'none', textAlign: 'right', fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
                             {nzd(totalPaidAmount)}
                           </td>
-                          <td style={{ ...TD, borderBottom: 'none' }} colSpan={canEdit ? 5 : 2} />
+                          <td style={{ ...TD, borderBottom: 'none', textAlign: 'right', fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>
+                            {nzd(month.arrPayableNZD)}
+                          </td>
+                          <td style={{ ...TD, borderBottom: 'none' }} colSpan={canEdit ? 6 : 2} />
                         </tr>
                       </tfoot>
                     </table>
                   </div>
+                  </>
+                  )}
+                  <OnboardingFeesTable
+                    deals={month.onboardingDeals}
+                    title="Onboarding Commission"
+                    showOwner
+                    marginTop={month.arrDeals.length > 0 ? 24 : 0}
+                    fieldsAvailable={showOnboarding}
+                    {...tableProps}
+                  />
                 </div>
                 )
               })}

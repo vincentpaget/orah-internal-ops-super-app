@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react'
 import type { DealEdit, DealEditFieldValue, SFCommissionOpportunity, SyncDealFn, SyncStatus } from '@/lib/commissions/types'
 import { buildPendingGroups } from '@/lib/commissions/pending'
 import { toNZD } from '@/lib/commissions/currency'
-import { nzd, shortDate } from '@/lib/formatters'
+import { nzd, percent, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
+import { PartPaidTag } from './CommissionsTable'
+import OnboardingFeesTable from './OnboardingFeesTable'
+import { earnedShare, onboardingPendingNow, payableNow, pendingNow, remainingCommission } from '@/lib/commissions/payments'
 
 interface Props {
   deals: SFCommissionOpportunity[]
@@ -16,6 +19,7 @@ interface Props {
   syncStatus: Record<string, SyncStatus>
   onSync: SyncDealFn
   canEdit: boolean
+  onboardingFieldsAvailable: boolean
 }
 
 const TH: React.CSSProperties = {
@@ -183,7 +187,7 @@ function dirtyStyle(
   }
 }
 
-export default function PendingSummaryView({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Props) {
+export default function PendingSummaryView({ deals, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit, onboardingFieldsAvailable: showOnboarding }: Props) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
 
   useEffect(() => {
@@ -197,10 +201,11 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
     })
   }, [syncStatus])
 
-  if (deals.length === 0) {
+  const repGroups = buildPendingGroups(deals)
+  if (repGroups.length === 0) {
     return (
       <p style={{ fontSize: 13, color: 'var(--fg-3)', fontStyle: 'italic' }}>
-        No pending deals right now — nothing is sitting below its payout threshold.
+        Nothing pending right now — no ARR below its payout threshold and no onboarding fees awaiting payment.
       </p>
     )
   }
@@ -214,12 +219,12 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
     })
   }
 
-  const repGroups = buildPendingGroups(deals)
+  const tableProps = { edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }
 
   return (
     <div>
       <p style={{ fontSize: 13, color: 'var(--fg-3)', margin: '0 0 20px' }}>
-        Deals that haven&apos;t met their payout threshold yet, grouped by rep and sorted by next invoice date.
+        Commission awaiting customer payment, grouped by rep, with ARR and onboarding commission in separate tables. ARR: deals that haven&apos;t met their payout threshold, sorted by next invoice date — deals invoiced in stages split into Payable Now (the share of committed ARR invoiced and paid, less what&apos;s been paid) and Pending (the rest, waiting on the next invoice). Onboarding: fees the customer hasn&apos;t paid in full yet.
       </p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -228,10 +233,18 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
             <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
               <h2 style={{ fontSize: 16, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>{rep.ownerName}</h2>
               <span style={{ fontSize: 13, color: 'var(--fg-2)' }}>
-                {rep.dealCount} deal{rep.dealCount === 1 ? '' : 's'}
+                {rep.dealCount} deal{rep.dealCount === 1 ? '' : 's'} · {nzd(rep.deals.reduce((s, d) => s + pendingNow(d), 0) + rep.onboardingDeals.reduce((s, d) => s + onboardingPendingNow(d), 0))} pending
               </span>
             </div>
 
+            {rep.deals.length > 0 && (
+            <>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginBottom: 8 }}>
+              <h4 style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-1)', margin: 0 }}>ARR Commission</h4>
+              <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>
+                {rep.deals.length} deal{rep.deals.length === 1 ? '' : 's'} · {nzd(rep.deals.reduce((s, d) => s + pendingNow(d), 0))} pending
+              </span>
+            </div>
             <div style={{ overflowX: 'auto' }}>
               <table style={{ width: 'auto', borderCollapse: 'separate', borderSpacing: 0 }}>
                 <thead>
@@ -241,8 +254,12 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                     <th style={TH}>Close Date</th>
                     <th style={{ ...TH, textAlign: 'right' }}>Amount (NZD)</th>
                     <th style={{ ...TH, textAlign: 'right' }}>Commission Amount</th>
-                    <th style={{ ...TH, textAlign: 'right' }}>SF Payout Threshold</th>
+                    <th style={{ ...TH, textAlign: 'right' }}>Paid to Date</th>
+                    <th style={{ ...TH, textAlign: 'right' }}>Payable Now</th>
+                    <th style={{ ...TH, textAlign: 'right' }}>Pending</th>
+                    <th style={{ ...TH, textAlign: 'right' }}>CARR Payout Threshold</th>
                     <th style={{ ...TH, textAlign: 'right' }}>Total Invoice Amount Paid</th>
+                    <th style={{ ...TH, textAlign: 'right' }}>% of CARR Earned</th>
                     <th style={TH}>SF Payout Threshold Met</th>
                     <th style={TH}>Next Invoice Date</th>
                     <th style={{ ...TH, minWidth: NOTES_MIN_WIDTH }}>SF Commission Notes</th>
@@ -276,10 +293,27 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                           {nzd(deal.Commission_Amount_NZD__c)}
                         </td>
                         <td style={{ ...TD, textAlign: 'right', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
+                          {nzd(deal.Commission_Paid_Amount_NZD__c)}
+                        </td>
+                        <td style={{ ...TD, textAlign: 'right' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+                            {(deal.Commission_Paid_Amount_NZD__c ?? 0) !== 0 && remainingCommission(deal) !== 0 && <PartPaidTag />}
+                            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{payableNow(deal) !== 0 ? nzd(payableNow(deal)) : '—'}</span>
+                          </span>
+                        </td>
+                        <td style={{ ...TD, textAlign: 'right' }}>
+                          <span>
+                            <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color: 'var(--fg-1)' }}>{nzd(pendingNow(deal))}</span>
+                          </span>
+                        </td>
+                        <td style={{ ...TD, textAlign: 'right', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
                           {localAmount(deal.Commission_Payout_Threshold__c, deal.CurrencyIsoCode)}
                         </td>
                         <td style={{ ...TD, textAlign: 'right', color: 'var(--fg-2)', fontVariantNumeric: 'tabular-nums' }}>
                           {localAmount(deal.Total_Invoice_Amount_Paid__c, deal.CurrencyIsoCode)}
+                        </td>
+                        <td style={{ ...TD, textAlign: 'right', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--orange-700)' }}>
+                          {percent((deal.Net_ARR_Override__c ?? 0) > 0 ? earnedShare(deal) : null)}
                         </td>
                         <td style={TD}><Checkbox checked={deal.Commission_Payout_Threshold_Met__c} /></td>
                         <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.Maxio_Next_Invoice_Date__c)}</td>
@@ -306,14 +340,13 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                             <td style={{ ...TD, textAlign: 'center' }}>
                               <SyncCell
                                 status={syncStatus[deal.Id]}
-                                onClick={() => onSync(
-                                  deal.Id,
-                                  deal.Commission_Amount_NZD__c ?? null,
-                                  effectiveNotes ?? null,
-                                  effectivePaid ?? null,
-                                  effectivePaidAmount ?? null,
-                                  effectivePaidDate ?? null
-                                )}
+                                onClick={() => onSync(deal.Id, {
+                  commissionAmount: deal.Commission_Amount_NZD__c ?? null,
+                  commissionNotes: effectiveNotes ?? null,
+                  commissionPaid: effectivePaid ?? null,
+                  commissionPaidAmount: effectivePaidAmount ?? null,
+                  commissionPaidDate: effectivePaidDate ?? null,
+                })}
                               />
                             </td>
                           </>
@@ -324,6 +357,16 @@ export default function PendingSummaryView({ deals, edits, syncedEdits, onEditFi
                 </tbody>
               </table>
             </div>
+            </>
+            )}
+            <OnboardingFeesTable
+              deals={rep.onboardingDeals}
+              title="Onboarding Commission"
+              showOwner
+              marginTop={rep.deals.length > 0 ? 24 : 0}
+              fieldsAvailable={showOnboarding}
+              {...tableProps}
+            />
           </div>
         ))}
       </div>

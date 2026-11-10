@@ -1,11 +1,17 @@
-import type { CommissionBand, CommissionDeal, CompPlan, QuarterCommissionGroup, SFCommissionOpportunity } from './types'
+import type { CommissionBand, CommissionDeal, CompPlan, CompPlanSettings, QuarterCommissionGroup, SFCommissionOpportunity } from './types'
 import { toNZD } from './currency'
 import { quarterKeyForDate, quarterLabel } from './quarters'
+import { isCommissionLocked } from './payments'
+
+type BaseCommissionDeal = Omit<CommissionDeal, 'onboardingFeeNZD' | 'onboardingCommission'>
 
 export const DEFAULT_QUOTA = 50000
 
 /** Pre-filled flat expansion rate for newly added plans only — existing plans without one keep expansions in the bands. */
 export const DEFAULT_EXPANSION_RATE = 0.08
+
+/** Pre-filled onboarding / professional services rate for newly added plans — existing plans without one pay none. */
+export const DEFAULT_ONBOARDING_RATE = 0.10
 
 export const DEFAULT_BANDS: CommissionBand[] = [
   { key: '1', name: '1', emoji: '', max: 0.50,     rate: 0.2245 },
@@ -23,12 +29,13 @@ export function isNewBusiness(deal: SFCommissionOpportunity): boolean {
 }
 
 function tierOf(deal: SFCommissionOpportunity): number {
-  if (deal.Commission_Paid__c) return 0
+  // Partially paid deals count as locked too — their commission was fixed when the first payment went out.
+  if (isCommissionLocked(deal)) return 0
   if (deal.Commission_Payout_Threshold_Met__c) return 1
   return 2
 }
 
-/** The real, already-locked effective rate for a paid deal — independent of processing order. */
+/** The real, already-locked effective rate for a paid (or partially paid) deal — independent of processing order. */
 function lockedCommissionRate(deal: SFCommissionOpportunity): number {
   const amountNZD = toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c)
   return amountNZD !== 0 ? (deal.Commission_Amount_NZD__c ?? 0) / amountNZD : 0
@@ -106,7 +113,7 @@ export function marginalCommission(
 }
 
 /** `deals` must already be sorted by CloseDate ascending for a single Owner. */
-export function applyCommissions(deals: SFCommissionOpportunity[], quota: number, bands: CommissionBand[]): CommissionDeal[] {
+export function applyCommissions(deals: SFCommissionOpportunity[], quota: number, bands: CommissionBand[]): BaseCommissionDeal[] {
   let cumulative = 0
   return deals.map(deal => {
     const amountNZD = toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c)
@@ -114,8 +121,7 @@ export function applyCommissions(deals: SFCommissionOpportunity[], quota: number
     const { commission, newCumulativeAmount } = marginalCommission(cumulative, amountNZD, quota, bands)
     cumulative = newCumulativeAmount
     const attainmentAfter = quota > 0 ? cumulative / quota : 0
-    const isPaid = deal.Commission_Paid__c === true
-    const calculatedCommission = isPaid ? (deal.Commission_Amount_NZD__c ?? 0) : commission
+    const calculatedCommission = isCommissionLocked(deal) ? (deal.Commission_Amount_NZD__c ?? 0) : commission
     return {
       ...deal,
       amountNZD,
@@ -133,7 +139,7 @@ export function applyCommissions(deals: SFCommissionOpportunity[], quota: number
 const NO_PLAN_BAND: CommissionBand = { key: '0', name: '0', emoji: '', max: null, rate: 0 }
 
 /** No comp plan set for this quarter — deals still list, but nothing is calculated. */
-function zeroFillDeals(deals: SFCommissionOpportunity[]): CommissionDeal[] {
+function zeroFillDeals(deals: SFCommissionOpportunity[]): BaseCommissionDeal[] {
   let cumulative = 0
   return deals.map(deal => {
     const amountNZD = toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c)
@@ -161,14 +167,13 @@ function flatRateBand(rate: number): CommissionBand {
  * (paid deals keep their locked SF amount, same as `applyCommissions`) and none of them move
  * quota attainment. Attainment fields are left at 0 — they don't apply to these deals.
  */
-function applyFlatRate(deals: SFCommissionOpportunity[], rate: number): CommissionDeal[] {
+function applyFlatRate(deals: SFCommissionOpportunity[], rate: number): BaseCommissionDeal[] {
   let cumulative = 0
   const band = flatRateBand(rate)
   return deals.map(deal => {
     const amountNZD = toNZD(deal.Net_ARR_Override__c, deal.Static_Currency_Conversion_Rate__c)
     cumulative += amountNZD
-    const isPaid = deal.Commission_Paid__c === true
-    const calculatedCommission = isPaid ? (deal.Commission_Amount_NZD__c ?? 0) : amountNZD * rate
+    const calculatedCommission = isCommissionLocked(deal) ? (deal.Commission_Amount_NZD__c ?? 0) : amountNZD * rate
     return {
       ...deal,
       amountNZD,
@@ -183,7 +188,42 @@ function applyFlatRate(deals: SFCommissionOpportunity[], rate: number): Commissi
   })
 }
 
-function calculateQuarterDeals(sorted: SFCommissionOpportunity[], plan: CompPlan | undefined): CommissionDeal[] {
+/**
+ * Onboarding / professional service fees earn a flat rate on top of the ARR commission (comp plan §5.2) and
+ * never move quota attainment — so they're layered on after the band walk rather than inside it.
+ */
+function withOnboarding(deals: BaseCommissionDeal[], rate: number | null): CommissionDeal[] {
+  return deals.map(deal => {
+    const onboardingFeeNZD = toNZD(deal.onboardingFeeAmount, deal.Static_Currency_Conversion_Rate__c)
+    const onboardingCommission = rate != null ? onboardingFeeNZD * rate : 0
+    return { ...deal, onboardingFeeNZD, onboardingCommission, calculatedOnboardingCommission: onboardingCommission }
+  })
+}
+
+/** The comp plan covering this deal: its commission owner's plan for the deal's close quarter, if one is set. */
+export function compPlanForDeal(deal: SFCommissionOpportunity, settings: CompPlanSettings): CompPlan | null {
+  const plan = settings[`${deal['Owner.Name']}::${quarterKeyForDate(deal.CloseDate)}`]
+  return plan && plan !== 'empty' ? plan : null
+}
+
+/** Only reps on a comp plan earn commission — deals with no plan for their close quarter are left out entirely. */
+export function onlyDealsWithCompPlan<T extends SFCommissionOpportunity>(deals: T[], settings: CompPlanSettings): T[] {
+  return deals.filter(deal => compPlanForDeal(deal, settings) != null)
+}
+
+/**
+ * Sets `calculatedOnboardingCommission` on deals outside the Rep Summary (Payable / Pending / pay runs), using each
+ * deal's commission owner's plan for its close quarter — the same rate the Rep Summary applies.
+ */
+export function applyOnboardingRates<T extends SFCommissionOpportunity>(deals: T[], settings: CompPlanSettings): T[] {
+  return deals.map(deal => {
+    const rate = compPlanForDeal(deal, settings)?.onboardingRate ?? null
+    const fee = toNZD(deal.onboardingFeeAmount, deal.Static_Currency_Conversion_Rate__c)
+    return { ...deal, calculatedOnboardingCommission: rate != null ? fee * rate : 0 }
+  })
+}
+
+function calculateQuarterDeals(sorted: SFCommissionOpportunity[], plan: CompPlan | undefined): BaseCommissionDeal[] {
   if (!plan) return zeroFillDeals(sorted)
   if (plan.expansionRate == null) return applyCommissions(sorted, plan.quota, plan.bands)
   const newBusiness = applyCommissions(sorted.filter(isNewBusiness), plan.quota, plan.bands)
@@ -213,8 +253,10 @@ export function buildQuarterGroups(
     const setting = settingsByQuarter[quarterKey]
     const hasPlan = setting != null
     const expansionRate = hasPlan ? (setting.expansionRate ?? null) : null
+    const onboardingRate = hasPlan ? (setting.onboardingRate ?? null) : null
     const sorted = [...quarterDeals].sort(compareDealsForCommission)
-    const commissionDeals = calculateQuarterDeals(sorted, setting)
+    const commissionDeals = withOnboarding(calculateQuarterDeals(sorted, setting), onboardingRate)
+    const onboardingCommission = commissionDeals.reduce((s, d) => s + d.onboardingCommission, 0)
     const newBusinessDeals = commissionDeals.filter(isNewBusiness)
     const expansionDeals = commissionDeals.filter(d => !isNewBusiness(d))
     const totalAmount = sumAmount(commissionDeals)
@@ -230,7 +272,7 @@ export function buildQuarterGroups(
       bands: hasPlan ? setting.bands : [],
       deals: commissionDeals,
       totalAmount,
-      totalCommission: sumCommission(commissionDeals),
+      totalCommission: sumCommission(commissionDeals) + onboardingCommission,
       totalSfCommissionAmount,
       totalSfPaidAmount,
       finalAttainment: hasPlan && setting.quota > 0 ? quotaCountedAmount / setting.quota : 0,
@@ -239,6 +281,9 @@ export function buildQuarterGroups(
       newBusinessCommission: sumCommission(newBusinessDeals),
       expansionAmount: sumAmount(expansionDeals),
       expansionCommission: sumCommission(expansionDeals),
+      onboardingRate,
+      onboardingFeeAmount: commissionDeals.reduce((s, d) => s + d.onboardingFeeNZD, 0),
+      onboardingCommission,
     })
   }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { CommissionBand, CompPlan, CompPlanSettings, DealEdit, DealEditFieldValue, SFCommissionOpportunity, StoredCompPlan, SyncStatus } from '@/lib/commissions/types'
-import { DEFAULT_BANDS, DEFAULT_EXPANSION_RATE, DEFAULT_QUOTA } from '@/lib/commissions/calc'
+import { applyOnboardingRates, DEFAULT_BANDS, onlyDealsWithCompPlan, DEFAULT_EXPANSION_RATE, DEFAULT_ONBOARDING_RATE, DEFAULT_QUOTA } from '@/lib/commissions/calc'
 import CommissionsFilters from './CommissionsFilters'
 import CommissionsView from './CommissionsView'
 import SettingsView from './SettingsView'
@@ -24,6 +24,7 @@ interface Props {
   initialSettingsQuarters: string[]
   activeUsers: { id: string; name: string }[]
   isAdmin: boolean
+  onboardingFieldsAvailable: boolean
 }
 
 const CARD: React.CSSProperties = {
@@ -97,7 +98,7 @@ function RefreshButton({ syncing, onClick }: { syncing: boolean; onClick: () => 
   )
 }
 
-export default function CommissionsClient({ deals, selectedOwner, owners, selectedQuarters, quarterOptions, payableDeals, pendingDeals, paidDeals, initialSettings, initialSettingsReps, initialSettingsQuarters, activeUsers, isAdmin }: Props) {
+export default function CommissionsClient({ deals, selectedOwner, owners, selectedQuarters, quarterOptions, payableDeals, pendingDeals, paidDeals, initialSettings, initialSettingsReps, initialSettingsQuarters, activeUsers, isAdmin, onboardingFieldsAvailable }: Props) {
   const router = useRouter()
   const [activeTab, setActiveTab] = useState<TabKey>('summary')
   const [refreshing, setRefreshing] = useState(false)
@@ -130,35 +131,19 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
     })
   }
 
-  async function syncDeal(
-    dealId: string,
-    commissionAmountNZD: number | null,
-    commissionNotes: string | null,
-    commissionPaid: boolean | null,
-    commissionPaidAmountNZD: number | null,
-    commissionPaidDate: string | null
-  ) {
+  async function syncDeal(dealId: string, fields: DealEdit) {
     setSyncStatus(prev => ({ ...prev, [dealId]: 'syncing' }))
     try {
       const res = await fetch('/api/commissions/update-opportunity', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: dealId, commissionAmountNZD, commissionNotes, commissionPaid, commissionPaidAmountNZD, commissionPaidDate }),
+        body: JSON.stringify({ id: dealId, fields }),
       })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
         throw new Error(body.error || 'Sync failed')
       }
-      setSyncedEdits(prev => ({
-        ...prev,
-        [dealId]: {
-          commissionAmount: commissionAmountNZD,
-          commissionNotes,
-          commissionPaid,
-          commissionPaidAmount: commissionPaidAmountNZD,
-          commissionPaidDate,
-        },
-      }))
+      setSyncedEdits(prev => ({ ...prev, [dealId]: { ...prev[dealId], ...fields } }))
       setSyncStatus(prev => ({ ...prev, [dealId]: 'success' }))
     } catch {
       setSyncStatus(prev => ({ ...prev, [dealId]: 'error' }))
@@ -195,7 +180,7 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
     const existing = settings[cellId]
     const base: CompPlan = existing && existing !== 'empty'
       ? existing
-      : { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE }
+      : { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE, onboardingRate: DEFAULT_ONBOARDING_RATE }
     const next: StoredCompPlan = { ...base, ...patch }
     setSettings(prev => ({ ...prev, [cellId]: next }))
     persistCell(cellId, next)
@@ -213,6 +198,10 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
     updateCell(cellId, { expansionRate })
   }
 
+  function setOnboardingRate(cellId: string, onboardingRate: number | null) {
+    updateCell(cellId, { onboardingRate })
+  }
+
   function removeCell(cellId: string) {
     if (!window.confirm('Remove this comp plan for this period? The cell will show as empty until a plan is added again.')) return
     setSettings(prev => ({ ...prev, [cellId]: 'empty' }))
@@ -220,10 +209,16 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
   }
 
   function addCell(cellId: string) {
-    const next: StoredCompPlan = { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE }
+    const next: StoredCompPlan = { quota: DEFAULT_QUOTA, bands: DEFAULT_BANDS, expansionRate: DEFAULT_EXPANSION_RATE, onboardingRate: DEFAULT_ONBOARDING_RATE }
     setSettings(prev => ({ ...prev, [cellId]: next }))
     persistCell(cellId, next)
   }
+
+  // Pending / Payable only include reps on a comp plan for the deal's close quarter (e.g. no plan → no commission).
+  // Onboarding commission is calculated in the app from each rep's plan, never stored in SF.
+  const payableWithOnboarding = applyOnboardingRates(onlyDealsWithCompPlan(payableDeals, settings), settings)
+  const pendingWithOnboarding = applyOnboardingRates(onlyDealsWithCompPlan(pendingDeals, settings), settings)
+  const paidWithOnboarding = applyOnboardingRates(paidDeals, settings)
 
   const selectedOwnerName = owners.find(o => o.ownerId === selectedOwner)?.ownerName ?? null
   const settingsByQuarterForSelectedOwner: Record<string, CompPlan> = {}
@@ -292,6 +287,7 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
                 syncStatus={syncStatus}
                 onSync={syncDeal}
                 canEdit={isAdmin}
+                onboardingFieldsAvailable={onboardingFieldsAvailable}
               />
             )}
           </section>
@@ -301,8 +297,9 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
       {activeTab === 'payable' && (
         <section style={CARD}>
           <PayableSummaryView
-            deals={payableDeals}
-            paidDeals={paidDeals}
+            onboardingFieldsAvailable={onboardingFieldsAvailable}
+            deals={payableWithOnboarding}
+            paidDeals={paidWithOnboarding}
             edits={edits}
             syncedEdits={syncedEdits}
             onEditField={setEditField}
@@ -317,7 +314,8 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
       {activeTab === 'pending' && (
         <section style={CARD}>
           <PendingSummaryView
-            deals={pendingDeals}
+            onboardingFieldsAvailable={onboardingFieldsAvailable}
+            deals={pendingWithOnboarding}
             edits={edits}
             syncedEdits={syncedEdits}
             onEditField={setEditField}
@@ -336,6 +334,7 @@ export default function CommissionsClient({ deals, selectedOwner, owners, select
             onSetQuota={setQuota}
             onSetBands={setBands}
             onSetExpansionRate={setExpansionRate}
+            onSetOnboardingRate={setOnboardingRate}
             onRemoveCell={removeCell}
             onAddCell={addCell}
             initialReps={initialSettingsReps}

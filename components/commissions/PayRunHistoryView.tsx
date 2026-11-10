@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from 'react'
 import type { SFCommissionOpportunity } from '@/lib/commissions/types'
-import { buildPayRunHistory, paidAmountNZD } from '@/lib/commissions/payable'
+import { buildPayRunHistory } from '@/lib/commissions/payable'
 import { toNZD } from '@/lib/commissions/currency'
 import { nzd, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
@@ -170,9 +170,14 @@ export default function PayRunHistoryView({ deals }: Props) {
                         </tr>
 
                         {repOpen && rep.deals.map(deal => (
-                          <tr key={deal.Id} style={{ background: 'var(--bg-subtle)' }}>
+                          <tr key={`${deal.Id}-${deal.paymentKind}`} style={{ background: 'var(--bg-subtle)' }}>
                             <td style={{ ...TD, paddingLeft: 66, maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               <SalesforceLink label={deal.Name} opportunityId={deal.Id} />
+                              {deal.paymentKind === 'onboarding' && (
+                                <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: 'var(--blue-50)', color: 'var(--blue-500)' }}>
+                                  Onboarding
+                                </span>
+                              )}
                             </td>
                             <td style={{ ...TD, color: 'var(--fg-2)' }}>{deal['RecordType.Name'] ?? '—'}</td>
                             <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.CloseDate)}</td>
@@ -181,8 +186,8 @@ export default function PayRunHistoryView({ deals }: Props) {
                             </td>
                             <td style={TD} />
                             <td style={TD} />
-                            <td style={{ ...TD, ...NUM, color: 'var(--fg-1)' }}>{nzd(paidAmountNZD(deal))}</td>
-                            <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.Commission_Paid_Date__c)}</td>
+                            <td style={{ ...TD, ...NUM, color: 'var(--fg-1)' }}>{nzd(deal.paymentAmountNZD)}</td>
+                            <td style={{ ...TD, color: 'var(--fg-2)' }}>{shortDate(deal.paymentDate)}</td>
                             <td style={{ ...TD, color: 'var(--fg-2)', whiteSpace: 'normal', minWidth: 240 }}>{deal.Commission_Notes__c ?? ''}</td>
                           </tr>
                         ))}

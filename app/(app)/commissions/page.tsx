@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers'
 import { verifyJWT } from '@/lib/session'
 import { getCommissionsPermissions } from '@/lib/commissions/permissions'
-import { fetchActiveSalesforceUsers, fetchClosedWonOwners, fetchCommissionOpportunitiesForOwner, fetchPaidOpportunities, fetchPayableOpportunities, fetchPendingOpportunities } from '@/lib/commissions/salesforce'
+import { onboardingFieldsAvailable, fetchActiveSalesforceUsers, fetchClosedWonOwners, fetchCommissionOpportunitiesForOwner, fetchPaidOpportunities, fetchPayableOpportunities, fetchPendingOpportunities } from '@/lib/commissions/salesforce'
 import { defaultTrailingQuarterKeys, listQuarterOptions, quarterDateRange, quarterKeyForDate } from '@/lib/commissions/quarters'
 import { fetchCompPlanSettings, fetchSettingsConfig } from '@/lib/commissions/compPlanStore'
 import { DEFAULT_SETTINGS_QUARTERS, DEFAULT_SETTINGS_REPS } from '@/lib/commissions/settingsConfig'
@@ -105,6 +105,8 @@ export default async function CommissionsPage({ searchParams }: Props) {
     settingsError = err instanceof Error ? err.message : 'Unknown error loading comp plans'
   }
 
+  const onboardingFieldsReady = sfConfigured && !sfError ? await onboardingFieldsAvailable() : false
+
   let activeUsers: { id: string; name: string }[] = []
   if (sfConfigured && !sfError && permissions.isAdmin) {
     try {
@@ -167,6 +169,7 @@ export default async function CommissionsPage({ searchParams }: Props) {
         initialSettingsQuarters={settingsQuarters}
         activeUsers={activeUsers}
         isAdmin={permissions.isAdmin}
+        onboardingFieldsAvailable={onboardingFieldsReady}
       />
     </div>
   )

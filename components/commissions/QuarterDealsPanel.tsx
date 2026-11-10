@@ -6,6 +6,7 @@ import { DEAL_VIEWS } from '@/lib/commissions/views'
 import { nzd } from '@/lib/formatters'
 import { isNewBusiness } from '@/lib/commissions/calc'
 import CommissionsTable, { type DealSection } from './CommissionsTable'
+import OnboardingFeesTable from './OnboardingFeesTable'
 
 function bandDollarRange(quota: number, bands: CommissionBand[], index: number): string {
   const prevMax = index === 0 ? 0 : bands[index - 1].max
@@ -72,6 +73,7 @@ interface Props {
   syncStatus: Record<string, SyncStatus>
   onSync: SyncDealFn
   canEdit: boolean
+  onboardingFieldsAvailable: boolean
 }
 
 const TAB: React.CSSProperties = {
@@ -87,7 +89,7 @@ const TAB: React.CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit }: Props) {
+export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit, onboardingFieldsAvailable }: Props) {
   const [viewKey, setViewKey] = useState(DEAL_VIEWS[0].key)
   const view = DEAL_VIEWS.find(v => v.key === viewKey) ?? DEAL_VIEWS[0]
   const filteredDeals = group.deals.filter(view.filter)
@@ -104,6 +106,8 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
     )
   }
 
+  const onboardingRatePct = group.onboardingRate != null ? `${Math.round(group.onboardingRate * 10000) / 100}%` : null
+  const onboardingDeals = filteredDeals.filter(d => d.onboardingFeeAmount !== 0)
   const expansionRatePct = group.expansionRate != null ? `${Math.round(group.expansionRate * 10000) / 100}%` : null
   const sections: DealSection[] | undefined = expansionRatePct != null
     ? [
@@ -153,6 +157,12 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
           ))}
           <GroupLabel>Expansion</GroupLabel>
           <BandPill range={expansionRatePct != null ? 'Flat' : 'In bands'} rate={expansionRatePct ?? ''} />
+          {onboardingRatePct != null && (
+            <>
+              <GroupLabel>Onboarding</GroupLabel>
+              <BandPill range="Flat" rate={onboardingRatePct} />
+            </>
+          )}
         </div>
       </div>
 
@@ -163,6 +173,16 @@ export default function QuarterDealsPanel({ group, edits, syncedEdits, onEditFie
         showBandLines={view.key === 'all'}
         {...tableProps}
       />
+
+      {group.onboardingRate != null && (
+        <OnboardingFeesTable
+          deals={onboardingDeals}
+          rate={group.onboardingRate}
+          fieldsAvailable={onboardingFieldsAvailable}
+          emptyText="No onboarding or professional service fees this quarter."
+          {...tableProps}
+        />
+      )}
     </div>
   )
 }

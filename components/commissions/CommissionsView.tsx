@@ -14,10 +14,11 @@ interface Props {
   syncStatus: Record<string, SyncStatus>
   onSync: SyncDealFn
   canEdit: boolean
+  onboardingFieldsAvailable: boolean
 }
 
 export default function CommissionsView({
-  deals, settingsByQuarter, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit,
+  deals, settingsByQuarter, edits, syncedEdits, onEditField, onUndoEdits, syncStatus, onSync, canEdit, onboardingFieldsAvailable,
 }: Props) {
   if (deals.length === 0) {
     return <p style={{ fontSize: 13, color: 'var(--fg-3)', fontStyle: 'italic' }}>No Closed Won deals for this rep.</p>
@@ -41,6 +42,7 @@ export default function CommissionsView({
           syncStatus={syncStatus}
           onSync={onSync}
           canEdit={canEdit}
+          onboardingFieldsAvailable={onboardingFieldsAvailable}
         />
         </div>
       ))}

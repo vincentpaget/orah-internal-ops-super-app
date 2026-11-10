@@ -5,6 +5,7 @@ import type { CommissionDeal, DealEdit, DealEditFieldValue, SyncDealFn, SyncStat
 import { COLUMN_GROUPS } from '@/lib/commissions/views'
 import { nzd, percent, shortDate } from '@/lib/formatters'
 import SalesforceLink from '@/components/ui/SalesforceLink'
+import { arrInvoicedPaid, earnedShare, effectiveCommissionAmount, paidSource, effectivePaidFlag, isCommissionLocked, isPartiallyPaid, payableNow, pendingNow, recordPaymentEdits } from '@/lib/commissions/payments'
 
 /** A labelled group of rows (e.g. New Business / Expansion) with its own subtotal row. */
 export interface DealSection {
@@ -90,7 +91,7 @@ const EDIT_INPUT: React.CSSProperties = {
   fontFamily: 'inherit',
 }
 
-function Checkbox({ checked, onChange, disabled }: { checked: boolean; onChange?: (checked: boolean) => void; disabled?: boolean }) {
+export function Checkbox({ checked, onChange, disabled }: { checked: boolean; onChange?: (checked: boolean) => void; disabled?: boolean }) {
   return (
     <input
       type="checkbox"
@@ -139,7 +140,7 @@ function WarningIcon({ title = 'SF Commission Amount is empty' }: { title?: stri
   )
 }
 
-function LockIcon() {
+export function LockIcon() {
   return (
     <span title="Locked — matches the actual SF Commission Amount, since this deal has been paid" style={{ display: 'inline-flex', flexShrink: 0 }}>
       <svg width="12" height="12" viewBox="0 0 16 16" fill="none">
@@ -150,7 +151,7 @@ function LockIcon() {
   )
 }
 
-function EditToggleButton({ editing, onClick }: { editing: boolean; onClick: () => void }) {
+export function EditToggleButton({ editing, onClick }: { editing: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -176,7 +177,7 @@ function EditToggleButton({ editing, onClick }: { editing: boolean; onClick: () 
   )
 }
 
-function CopyToSfButton({ onClick }: { onClick: () => void }) {
+export function CopyToSfButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -197,7 +198,7 @@ function CopyToSfButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-function UndoButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
+export function UndoButton({ disabled, onClick }: { disabled: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -220,7 +221,7 @@ function UndoButton({ disabled, onClick }: { disabled: boolean; onClick: () => v
   )
 }
 
-function SyncCell({ status, onClick }: { status?: SyncStatus; onClick: () => void }) {
+export function SyncCell({ status, onClick }: { status?: SyncStatus; onClick: () => void }) {
   if (status === 'syncing') {
     return (
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ animation: 'sf-spin 0.8s linear infinite' }}>
@@ -288,7 +289,53 @@ function FlatTag() {
   )
 }
 
-function localAmount(value: number | null, code: string | null): string {
+/** What's still owed on the deal; partially paid deals get a "Part paid" tag (Amount − Paid to date). */
+function RemainingCell({ show, owed, partial }: { show: boolean; owed: number; partial: boolean }) {
+  if (!show) return <span style={{ color: 'var(--fg-2)' }}>—</span>
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+      {partial && <PartPaidTag />}
+      <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{nzd(owed)}</span>
+    </span>
+  )
+}
+
+export function PartPaidTag() {
+  return (
+    <span
+      title="Partially paid — showing Commission Amount minus Paid to Date"
+      style={{
+        fontSize: 10, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase',
+        padding: '1px 6px', borderRadius: 4, background: 'var(--orange-50)', color: 'var(--orange-700)',
+      }}
+    >
+      Part paid
+    </span>
+  )
+}
+
+/** Fills in the edits for paying out everything payable now (Paid to Date, Paid Date, Paid tick) — review, then Sync. */
+export function RecordPaymentButton({ amount, onClick }: { amount: number; onClick: () => void }) {
+  const disabled = amount === 0
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={disabled ? 'Nothing payable right now' : `Record payment of ${nzd(amount)} — sets Paid to Date and Paid Date, then review and Sync`}
+      style={{
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        height: 24, minWidth: 24, padding: '0 6px', borderRadius: 6, cursor: disabled ? 'default' : 'pointer',
+        border: `1px solid ${disabled ? 'var(--border)' : 'var(--green-600)'}`,
+        background: 'var(--bg)', color: disabled ? 'var(--fg-3)' : 'var(--green-700)',
+        opacity: disabled ? 0.4 : 1, fontSize: 12, fontWeight: 700, fontFamily: 'inherit',
+      }}
+    >
+      $
+    </button>
+  )
+}
+
+export function localAmount(value: number | null, code: string | null): string {
   if (value == null) return '—'
   return new Intl.NumberFormat('en-NZ', {
     style: 'currency',
@@ -298,15 +345,7 @@ function localAmount(value: number | null, code: string | null): string {
   }).format(value)
 }
 
-function effectiveCommissionAmount(deal: CommissionDeal, edits: Record<string, DealEdit>): number | null {
-  const edit = edits[deal.Id]
-  return edit?.commissionAmount !== undefined ? edit.commissionAmount : deal.Commission_Amount_NZD__c
-}
-
-function effectivePaidOf(deal: CommissionDeal, edits: Record<string, DealEdit>): boolean {
-  const edit = edits[deal.Id]
-  return (edit?.commissionPaid !== undefined ? edit.commissionPaid : deal.Commission_Paid__c) ?? false
-}
+const effectivePaidOf = effectivePaidFlag
 
 const CALCULATED_KEYS = new Set(['calculatedCommission', 'calculatedCommissionRate'])
 const CALCULATED_BORDER = '1px solid var(--border-strong)'
@@ -384,6 +423,14 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
     })
   }
 
+  /** Stages the payout edits and opens the row for review — nothing is saved until Sync. */
+  function recordPayment(deal: CommissionDeal) {
+    for (const [field, value] of Object.entries(recordPaymentEdits(deal, edits))) {
+      onEditField(deal.Id, field as keyof DealEdit, value as DealEditFieldValue)
+    }
+    setEditingIds(prev => new Set(prev).add(deal.Id))
+  }
+
   function toggleGroup(id: string) {
     setCollapsedGroups(prev => {
       const next = new Set(prev)
@@ -434,7 +481,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
       header: 'Calculated Commission', align: 'right',
       cell: deal => (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, justifyContent: 'flex-end' }}>
-          {deal.Commission_Paid__c && <LockIcon />}
+          {isCommissionLocked(deal) && <LockIcon />}
           <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{nzd(deal.calculatedCommission)}</span>
         </span>
       ),
@@ -481,12 +528,40 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
         )
       },
     },
+    arrPaid: {
+      header: 'Actual ARR Paid', align: 'right',
+      cell: deal => {
+        const source = paidSource(deal)
+        const title = source === 'maxio'
+          ? 'From Maxio: subscription lines on invoices with status Paid (onboarding, SMS credits and hardware excluded)'
+          : 'Estimate — no Maxio invoice lines linked to this opportunity: Total Invoice Amount Paid minus the onboarding fee'
+        return (
+          <span title={title} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
+            {source === 'estimate' && (
+              <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 5px', borderRadius: 4, background: 'var(--orange-50)', color: 'var(--orange-700)' }}>
+                Est.
+              </span>
+            )}
+            <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{localAmount(arrInvoicedPaid(deal), deal.CurrencyIsoCode)}</span>
+          </span>
+        )
+      },
+    },
+    invoicePaidPct: {
+      header: '% of CARR Earned', align: 'right',
+      cell: deal => {
+        // The same earned share that drives Payable Amount: ARR invoiced and paid (Maxio) ÷ CARR, capped at 100%.
+        const pct = (deal.Net_ARR_Override__c ?? 0) > 0 ? earnedShare(deal) : null
+        const color = pct == null ? 'var(--fg-3)' : pct >= 1 ? 'var(--green-700)' : pct > 0 ? 'var(--orange-700)' : 'var(--fg-2)'
+        return <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600, color }}>{percent(pct)}</span>
+      },
+    },
     sfQualified: {
       header: 'SF Payout Threshold Met', align: 'left',
       cell: deal => <Checkbox checked={deal.Commission_Payout_Threshold_Met__c} disabled />,
     },
     payoutThreshold: {
-      header: 'Payout Threshold', align: 'right',
+      header: 'CARR Payout Threshold', align: 'right',
       cell: deal => (
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
           {deal.Commission_Payout_Threshold__c == null && <WarningIcon title="Payout Threshold is empty" />}
@@ -503,7 +578,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
       cell: deal => <span style={{ color: 'var(--fg-2)' }}>{shortDate(deal.Maxio_Next_Invoice_Date__c)}</span>,
     },
     sfPaid: {
-      header: 'SF Commission Paid', align: 'left',
+      header: 'Commission Fully Paid', align: 'left',
       cell: deal => {
         const effective = effectivePaidOf(deal, edits)
         const isEditing = editingIds.has(deal.Id)
@@ -517,21 +592,21 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
       },
     },
     pendingAmount: {
-      header: 'Pending Amount', align: 'right',
+      header: 'Pending Amount', align: 'right', // not yet earned — waiting on invoices
       cell: deal => {
-        const show = !effectivePaidOf(deal, edits) && deal.Commission_Payout_Threshold_Met__c === false
-        return <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{show ? nzd(effectiveCommissionAmount(deal, edits)) : '—'}</span>
+        const owed = pendingNow(deal, edits)
+        return <RemainingCell show={owed !== 0} owed={owed} partial={isPartiallyPaid(deal, edits)} />
       },
     },
     payableAmount: {
       header: 'Payable Amount', align: 'right',
       cell: deal => {
-        const show = !effectivePaidOf(deal, edits) && deal.Commission_Payout_Threshold_Met__c === true
-        return <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--fg-2)' }}>{show ? nzd(effectiveCommissionAmount(deal, edits)) : '—'}</span>
+        const owed = payableNow(deal, edits)
+        return <RemainingCell show={owed !== 0} owed={owed} partial={false} />
       },
     },
     sfPaidAmount: {
-      header: 'SF Commission Paid Amount', align: 'right',
+      header: 'SF Commission Paid to Date', align: 'right',
       cell: deal => {
         const edit = edits[deal.Id]
         const effective = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : deal.Commission_Paid_Amount_NZD__c
@@ -606,14 +681,8 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
       const effective = edit?.commissionPaidAmount !== undefined ? edit.commissionPaidAmount : d.Commission_Paid_Amount_NZD__c
       return s + (effective ?? 0)
     }, 0)
-    const totalPendingAmount = rows.reduce((s, d) => {
-      const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === false
-      return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
-    }, 0)
-    const totalPayableAmount = rows.reduce((s, d) => {
-      const show = !effectivePaidOf(d, edits) && d.Commission_Payout_Threshold_Met__c === true
-      return s + (show ? (effectiveCommissionAmount(d, edits) ?? 0) : 0)
-    }, 0)
+    const totalPendingAmount = rows.reduce((s, d) => s + pendingNow(d, edits), 0)
+    const totalPayableAmount = rows.reduce((s, d) => s + payableNow(d, edits), 0)
     const totalCalculatedCommission = rows.reduce((s, d) => s + d.calculatedCommission, 0)
     const bandDeals = rows.filter(d => !d.isExpansionFlat)
     const finalAttainmentShown = bandDeals.length > 0 ? bandDeals[bandDeals.length - 1].attainmentAfter : null
@@ -629,7 +698,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
     }
   }
 
-  const columnCount = 2 + visibleKeys.length + (canEdit ? 4 : 0)
+  const columnCount = 2 + visibleKeys.length + (canEdit ? 5 : 0)
 
   function totalsRow(key: string, label: string, rows: CommissionDeal[], variant: 'subtotal' | 'grand') {
     const values = footerValues(rows)
@@ -653,7 +722,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
             {values[k] ?? null}
           </td>
         ))}
-        {canEdit && <td style={cellStyle} colSpan={4} />}
+        {canEdit && <td style={cellStyle} colSpan={5} />}
       </tr>
     )
   }
@@ -714,19 +783,21 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
               <CopyToSfButton onClick={() => onEditField(deal.Id, 'commissionAmount', deal.calculatedCommission)} />
             </td>
             <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
+              <RecordPaymentButton amount={payableNow(deal, edits)} onClick={() => recordPayment(deal)} />
+            </td>
+            <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
               <UndoButton disabled={!edit} onClick={() => onUndoEdits(deal.Id)} />
             </td>
             <td style={{ ...TD, ...breakBorder, textAlign: 'center' }}>
               <SyncCell
                 status={syncStatus[deal.Id]}
-                onClick={() => onSync(
-                  deal.Id,
-                  effectiveAmount ?? null,
-                  effectiveNotes ?? null,
-                  effectivePaid ?? null,
-                  effectivePaidAmount ?? null,
-                  effectivePaidDate ?? null
-                )}
+                onClick={() => onSync(deal.Id, {
+                  commissionAmount: effectiveAmount ?? null,
+                  commissionNotes: effectiveNotes ?? null,
+                  commissionPaid: effectivePaid ?? null,
+                  commissionPaidAmount: effectivePaidAmount ?? null,
+                  commissionPaidDate: effectivePaidDate ?? null,
+                })}
               />
             </td>
           </>
@@ -762,6 +833,7 @@ export default function CommissionsTable({ deals, columns, showBandLines = true,
                 <>
                   <th style={{ ...TH, textAlign: 'center' }}>Edit</th>
                   <th style={{ ...TH, textAlign: 'center' }}>Copy</th>
+                  <th style={{ ...TH, textAlign: 'center' }}>Pay</th>
                   <th style={{ ...TH, textAlign: 'center' }}>Undo</th>
                   <th style={{ ...TH, textAlign: 'center' }}>Sync</th>
                 </>

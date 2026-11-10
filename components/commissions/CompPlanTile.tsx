@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import type { CommissionBand } from '@/lib/commissions/types'
-import { DEFAULT_EXPANSION_RATE, marginalCommission } from '@/lib/commissions/calc'
+import { DEFAULT_EXPANSION_RATE, DEFAULT_ONBOARDING_RATE, marginalCommission } from '@/lib/commissions/calc'
 import { nzd } from '@/lib/formatters'
 
 interface Props {
@@ -10,11 +10,13 @@ interface Props {
   quota: number
   bands: CommissionBand[]
   expansionRate: number | null
+  onboardingRate: number | null
   isEditing: boolean
   onToggleEditing: (groupId: string) => void
   onQuotaChange: (groupId: string, quota: number) => void
   onBandsChange: (groupId: string, bands: CommissionBand[]) => void
   onExpansionRateChange: (groupId: string, rate: number | null) => void
+  onOnboardingRateChange: (groupId: string, rate: number | null) => void
   onRemove: (groupId: string) => void
 }
 
@@ -129,9 +131,10 @@ function RemoveButton({ onClick }: { onClick: () => void }) {
   )
 }
 
-export default function CompPlanTile({ groupId, quota, bands, expansionRate, isEditing, onToggleEditing, onQuotaChange, onBandsChange, onExpansionRateChange, onRemove }: Props) {
+export default function CompPlanTile({ groupId, quota, bands, expansionRate, onboardingRate, isEditing, onToggleEditing, onQuotaChange, onBandsChange, onExpansionRateChange, onOnboardingRateChange, onRemove }: Props) {
   const drafts = toDrafts(bands)
   const expansionRatePct = expansionRate == null ? null : Math.round(expansionRate * 10000) / 100
+  const onboardingRatePct = onboardingRate == null ? null : Math.round(onboardingRate * 10000) / 100
   const [lastFlatRate, setLastFlatRate] = useState(expansionRate ?? DEFAULT_EXPANSION_RATE)
   const [rawEdits, setRawEdits] = useState<Record<string, string>>({})
 
@@ -374,6 +377,47 @@ export default function CompPlanTile({ groupId, quota, bands, expansionRate, isE
             <span style={{ color: 'var(--fg-2)' }}>{expansionRatePct == null ? 'Included in quota bands' : 'Flat rate'}</span>
             {expansionRatePct != null && (
               <span style={{ fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{expansionRatePct}%</span>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
+        <div style={SECTION_LABEL}>Onboarding &amp; PS Fee Commission</div>
+        {isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <ModeRadio
+              name={`${groupId}-onboarding-mode`}
+              checked={onboardingRate == null}
+              label="None"
+              onSelect={() => onOnboardingRateChange(groupId, null)}
+            />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ModeRadio
+                name={`${groupId}-onboarding-mode`}
+                checked={onboardingRate != null}
+                label="Flat rate"
+                onSelect={() => { if (onboardingRate == null) onOnboardingRateChange(groupId, DEFAULT_ONBOARDING_RATE) }}
+              />
+              {onboardingRatePct != null && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={displayValue('onboardingRate', onboardingRatePct)}
+                    onChange={e => handleNumberInput('onboardingRate', e.target.value, value => onOnboardingRateChange(groupId, value / 100))}
+                    style={{ ...INPUT, width: 60 }}
+                  />
+                  <span style={{ fontSize: 12, color: 'var(--fg-3)' }}>%</span>
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+            <span style={{ color: 'var(--fg-2)' }}>{onboardingRatePct == null ? 'None' : 'Flat rate'}</span>
+            {onboardingRatePct != null && (
+              <span style={{ fontWeight: 700, color: 'var(--fg-1)', fontVariantNumeric: 'tabular-nums' }}>{onboardingRatePct}%</span>
             )}
           </div>
         )}

@@ -109,6 +109,7 @@ interface Props {
   onSetQuota: (cellId: string, quota: number) => void
   onSetBands: (cellId: string, bands: CommissionBand[]) => void
   onSetExpansionRate: (cellId: string, rate: number | null) => void
+  onSetOnboardingRate: (cellId: string, rate: number | null) => void
   onRemoveCell: (cellId: string) => void
   onAddCell: (cellId: string) => void
   initialReps: string[]
@@ -117,7 +118,7 @@ interface Props {
 }
 
 export default function SettingsView({
-  settings, onSetQuota, onSetBands, onSetExpansionRate, onRemoveCell, onAddCell,
+  settings, onSetQuota, onSetBands, onSetExpansionRate, onSetOnboardingRate, onRemoveCell, onAddCell,
   initialReps, initialQuarters, activeUsers,
 }: Props) {
   const [editingIds, setEditingIds] = useState<Set<string>>(new Set())
@@ -270,11 +271,13 @@ export default function SettingsView({
                             quota={stored.quota}
                             bands={stored.bands}
                             expansionRate={stored.expansionRate ?? null}
+                            onboardingRate={stored.onboardingRate ?? null}
                             isEditing={editingIds.has(id)}
                             onToggleEditing={toggleEditing}
                             onQuotaChange={onSetQuota}
                             onBandsChange={onSetBands}
                             onExpansionRateChange={onSetExpansionRate}
+                            onOnboardingRateChange={onSetOnboardingRate}
                             onRemove={handleRemoveCell}
                           />
                         )}
