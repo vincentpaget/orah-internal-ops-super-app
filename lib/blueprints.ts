@@ -30,6 +30,12 @@ export const BLUEPRINTS: Blueprint[] = [
     description: 'How renewals and expansions are run with existing customers.',
     file: 'sales-renewal-expansion.html',
   },
+  {
+    slug: 'pipeline-criteria',
+    title: 'Pipeline Criteria Cheat Sheet',
+    description: 'What each renewal and expansion stage needs, from Qualifying to Closed Won, on one page.',
+    file: 'pipeline-criteria.html',
+  },
 ]
 
 /** Blueprint shown when the tool is opened. */
